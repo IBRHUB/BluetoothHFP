@@ -5,12 +5,12 @@ import 'package:flutter/services.dart';
 
 void main() => runApp(const BluetoothHfpApp());
 
-const black = Color(0xFF000000);
-const card = Color(0xFF0A0A0A);
+const black = Color(0xFF101114);
+const card = Color(0xFF191B20);
 const white = Color(0xFFFFFFFF);
-const muted = Color(0xFF777777);
-const border = Color(0xFF1A1A1A);
-const green = Color(0xFF22C55E);
+const muted = Color(0xFF9A9FA9);
+const border = Color(0xFF2B2E36);
+const green = Color(0xFF58D99A);
 
 class BluetoothHfpApp extends StatelessWidget {
   const BluetoothHfpApp({super.key});
@@ -22,10 +22,49 @@ class BluetoothHfpApp extends StatelessWidget {
     theme: ThemeData(
       brightness: Brightness.dark,
       scaffoldBackgroundColor: black,
-      colorScheme: const ColorScheme.dark(surface: black, primary: white),
-      splashFactory: NoSplash.splashFactory,
-      hoverColor: Colors.transparent,
-      highlightColor: Colors.transparent,
+      colorScheme: const ColorScheme.dark(
+        surface: card,
+        primary: green,
+        onPrimary: black,
+        onSurface: white,
+        outline: border,
+      ),
+      fontFamily: 'Segoe UI',
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: white,
+          minimumSize: const Size(0, 44),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: white,
+          minimumSize: const Size(0, 44),
+          side: const BorderSide(color: border),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(0, 44),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: card,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: border),
+        ),
+      ),
     ),
     home: const HfpHome(),
   );
@@ -112,6 +151,7 @@ class _HfpHomeState extends State<HfpHome> {
   String? error;
   Timer? timer;
   bool busy = false;
+  int selectedTab = 0;
 
   @override
   void initState() {
@@ -143,7 +183,7 @@ class _HfpHomeState extends State<HfpHome> {
       if (mounted) {
         setState(() => error = 'Status unavailable');
       }
-    } on PlatformException catch (exception) {
+    } on PlatformException {
       if (mounted) setState(() => error = 'Request failed');
     } on MissingPluginException {
       if (mounted) {
@@ -184,11 +224,18 @@ class _HfpHomeState extends State<HfpHome> {
       if (mounted) {
         setState(() => error = 'Connection unavailable');
       }
-    } on PlatformException catch (exception) {
+    } on PlatformException {
       if (mounted) setState(() => error = 'Request failed');
     } finally {
       busy = false;
     }
+  }
+
+  String label(List<Device> devices, String? id, String fallback) {
+    for (final device in devices) {
+      if (device.id == id) return device.name;
+    }
+    return fallback;
   }
 
   String connectionLabel(String? value) => switch (value) {
@@ -224,170 +271,312 @@ class _HfpHomeState extends State<HfpHome> {
     final state = snapshot;
     final active = state?.routeActive ?? false;
     return Scaffold(
+      bottomNavigationBar: selectedTab == 0
+          ? SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+                child: Align(
+                  heightFactor: 1,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 492),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: Wrap(
+                        spacing: 12,
+                        runSpacing: 8,
+                        children: [
+                          OutlinedButton.icon(
+                            icon: const Icon(Icons.refresh_rounded, size: 18),
+                            onPressed: state?.phoneId == null
+                                ? null
+                                : () => change('reconnect', null),
+                            label: const Text('Reconnect'),
+                          ),
+                          FilledButton.icon(
+                            icon: const Icon(
+                              Icons.phone_forwarded_rounded,
+                              size: 18,
+                            ),
+                            onPressed:
+                                state?.phoneId == null ||
+                                    state?.voiceMode == true
+                                ? null
+                                : () => change('requestPcAudio', null),
+                            label: const Text('Use PC for call'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : null,
       body: Align(
         alignment: Alignment.topCenter,
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
+          constraints: const BoxConstraints(maxWidth: 540),
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Bluetooth HFP',
-                  style: TextStyle(
-                    color: white,
-                    fontSize: 26,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: -0.8,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                StatusRow(
-                  title: 'Bluetooth',
-                  value: state?.phoneId == null
-                      ? 'Not connected'
-                      : state!.phoneConnected
-                      ? 'Connected'
-                      : 'Disconnected',
-                ),
-                StatusRow(
-                  title: 'Media',
-                  value: connectionLabel(state?.mediaState),
-                ),
-                StatusRow(
-                  title: 'Calls',
-                  value: connectionLabel(state?.callsState),
-                ),
-                StatusRow(title: 'Microphone', value: microphoneLabel(state)),
-                const SizedBox(height: 16),
-                SelectRow(
-                  title: 'Phone',
-                  value: state == null
-                      ? 'Checking'
-                      : label(state.phones, state.phoneId, 'Select iPhone'),
-                  valueColor: state?.phoneConnected == true ? green : muted,
-                  choices: [
-                    if (state?.phoneId != null)
-                      const Choice('__stop__', 'Stop'),
-                    ...?state?.phones.map(
-                      (device) => Choice(device.id, device.name),
-                    ),
-                    const Choice('__pair__', 'Pair iPhone'),
-                  ],
-                  onSelected: (id) => change('selectPhone', id),
-                ),
-                const SizedBox(height: 8),
-                SelectRow(
-                  title: 'Microphone',
-                  value: state == null
-                      ? 'Checking'
-                      : label(state.inputs, state.inputId, 'Select microphone'),
-                  choices: [
-                    ...?state?.inputs.map(
-                      (device) => Choice(device.id, device.name),
-                    ),
-                  ],
-                  onSelected: (id) => change('selectInput', id),
-                ),
-                const SizedBox(height: 8),
-                SelectRow(
-                  title: 'Headphones',
-                  value: state == null
-                      ? 'Checking'
-                      : label(
-                          state.outputs,
-                          state.outputId,
-                          'Select headphones',
-                        ),
-                  choices: [
-                    ...?state?.outputs.map(
-                      (device) => Choice(device.id, device.name),
-                    ),
-                  ],
-                  onSelected: (id) => change('selectOutput', id),
-                ),
-                const SizedBox(height: 10),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  dense: true,
-                  title: const Text('Voice recording'),
-                  value: state?.voiceMode ?? false,
-                  onChanged: state?.phoneId == null
-                      ? null
-                      : (enabled) => change('setVoiceMode', enabled),
-                ),
-                OutlinedButton(
-                  onPressed:
-                      state?.inputId == null ||
-                          state?.outputId == null ||
-                          state?.testActive == true ||
-                          active
-                      ? null
-                      : () => change('testAudio', null),
-                  child: Text(
-                    state?.testActive == true ? 'Speak now' : 'Test microphone',
-                  ),
-                ),
-                if (state?.testMessage.isNotEmpty == true) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    state!.testActive
-                        ? 'Speak now'
-                        : state.testPeak > 0.001
-                        ? 'Signal detected'
-                        : 'No signal',
-                    style: const TextStyle(color: muted, fontSize: 11),
-                  ),
-                  const SizedBox(height: 6),
-                  LinearProgressIndicator(
-                    value: state.testPeak.clamp(0.0, 1.0),
-                    color: green,
-                    backgroundColor: border,
-                    semanticsLabel: 'Microphone level',
-                  ),
-                ],
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 4,
+                const Row(
                   children: [
-                    TextButton(
-                      onPressed: state?.phoneId == null
-                          ? null
-                          : () => change('reconnect', null),
-                      child: const Text('Reconnect'),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Color(0xFF20382E),
+                        borderRadius: BorderRadius.all(Radius.circular(12)),
+                      ),
+                      child: Padding(
+                        padding: EdgeInsets.all(10),
+                        child: Icon(
+                          Icons.bluetooth_rounded,
+                          color: green,
+                          size: 26,
+                        ),
+                      ),
                     ),
-                    TextButton(
-                      onPressed:
-                          state?.phoneId == null || state?.voiceMode == true
-                          ? null
-                          : () => change('requestPcAudio', null),
-                      child: const Text('Use PC for call'),
-                    ),
-                    PopupMenuButton<String>(
-                      tooltip: 'More settings',
-                      onSelected: (value) => change(value, null),
-                      itemBuilder: (context) => const [
-                        PopupMenuItem(
-                          value: 'openSoundSettings',
-                          child: Text('Sound'),
+                    SizedBox(width: 14),
+                    Flexible(
+                      child: Text(
+                        'Bluetooth HFP',
+                        style: TextStyle(
+                          color: white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.8,
                         ),
-                        PopupMenuItem(
-                          value: 'openCallPermissions',
-                          child: Text('Permissions'),
-                        ),
-                        PopupMenuItem(
-                          value: 'openPhoneLink',
-                          child: Text('Phone Link'),
-                        ),
-                      ],
-                      child: const Padding(
-                        padding: EdgeInsets.all(12),
-                        child: Text('Settings'),
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 24),
+                Panel(
+                  child: Column(
+                    children: [
+                      StatusRow(
+                        title: 'Bluetooth',
+                        value: state?.phoneId == null
+                            ? 'Not connected'
+                            : state!.phoneConnected
+                            ? 'Connected'
+                            : 'Disconnected',
+                      ),
+                      StatusRow(
+                        title: 'Media',
+                        value: connectionLabel(state?.mediaState),
+                      ),
+                      StatusRow(
+                        title: 'Calls',
+                        value: connectionLabel(state?.callsState),
+                      ),
+                      StatusRow(
+                        title: 'Microphone',
+                        value: microphoneLabel(state),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                DefaultTabController(
+                  length: 2,
+                  initialIndex: selectedTab,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: card,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: TabBar(
+                      onTap: (index) => setState(() => selectedTab = index),
+                      dividerHeight: 0,
+                      indicatorSize: TabBarIndicatorSize.tab,
+                      indicator: BoxDecoration(
+                        color: border,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      labelColor: white,
+                      unselectedLabelColor: muted,
+                      tabs: const [
+                        Tab(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.bluetooth_rounded, size: 18),
+                              SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  'Bluetooth',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Tab(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.tune_rounded, size: 18),
+                              SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  'Settings',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                if (selectedTab == 1)
+                  Panel(
+                    child: Column(
+                      children: [
+                        SettingsRow(
+                          title: 'Sound',
+                          icon: Icons.volume_up_outlined,
+                          onTap: () => change('openSoundSettings', null),
+                        ),
+                        const Divider(color: border, height: 16),
+                        SettingsRow(
+                          title: 'Permissions',
+                          icon: Icons.shield_outlined,
+                          onTap: () => change('openCallPermissions', null),
+                        ),
+                        const Divider(color: border, height: 16),
+                        SettingsRow(
+                          title: 'Phone Link',
+                          icon: Icons.phonelink_rounded,
+                          onTap: () => change('openPhoneLink', null),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (selectedTab == 0) ...[
+                  SelectRow(
+                    title: 'Phone',
+                    icon: Icons.smartphone_rounded,
+                    selectedId: state?.phoneId,
+                    value: state == null
+                        ? 'Checking'
+                        : label(state.phones, state.phoneId, 'Select iPhone'),
+                    valueColor: state?.phoneConnected == true ? green : muted,
+                    choices: [
+                      if (state?.phoneId != null)
+                        const Choice('__stop__', 'Stop'),
+                      ...?state?.phones.map(
+                        (device) => Choice(device.id, device.name),
+                      ),
+                      const Choice('__pair__', 'Pair iPhone'),
+                    ],
+                    onSelected: (id) => change('selectPhone', id),
+                  ),
+                  const SizedBox(height: 12),
+                  SelectRow(
+                    title: 'Microphone',
+                    icon: Icons.mic_none_rounded,
+                    selectedId: state?.inputId,
+                    value: state == null
+                        ? 'Checking'
+                        : label(
+                            state.inputs,
+                            state.inputId,
+                            'Select microphone',
+                          ),
+                    choices: [
+                      ...?state?.inputs.map(
+                        (device) => Choice(device.id, device.name),
+                      ),
+                    ],
+                    onSelected: (id) => change('selectInput', id),
+                  ),
+                  const SizedBox(height: 12),
+                  SelectRow(
+                    title: 'Headphones',
+                    icon: Icons.headphones_outlined,
+                    selectedId: state?.outputId,
+                    value: state == null
+                        ? 'Checking'
+                        : label(
+                            state.outputs,
+                            state.outputId,
+                            'Select headphones',
+                          ),
+                    choices: [
+                      ...?state?.outputs.map(
+                        (device) => Choice(device.id, device.name),
+                      ),
+                    ],
+                    onSelected: (id) => change('selectOutput', id),
+                  ),
+                  const SizedBox(height: 16),
+                  Panel(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          title: const Text('Voice recording'),
+                          secondary: const Icon(
+                            Icons.graphic_eq_rounded,
+                            color: muted,
+                            size: 22,
+                          ),
+                          value: state?.voiceMode ?? false,
+                          onChanged: state?.phoneId == null
+                              ? null
+                              : (enabled) => change('setVoiceMode', enabled),
+                        ),
+                        const SizedBox(height: 8),
+                        OutlinedButton.icon(
+                          icon: const Icon(Icons.mic_none_rounded, size: 18),
+                          onPressed:
+                              state?.inputId == null ||
+                                  state?.outputId == null ||
+                                  state?.testActive == true ||
+                                  active
+                              ? null
+                              : () => change('testAudio', null),
+                          label: Text(
+                            state?.testActive == true
+                                ? 'Speak now'
+                                : 'Test microphone',
+                          ),
+                        ),
+                        if (state?.testMessage.isNotEmpty == true) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            state!.testActive
+                                ? 'Speak now'
+                                : state.testPeak > 0.001
+                                ? 'Signal detected'
+                                : 'No signal',
+                            style: const TextStyle(color: muted, fontSize: 11),
+                          ),
+                          const SizedBox(height: 6),
+                          LinearProgressIndicator(
+                            value: state.testPeak.clamp(0.0, 1.0),
+                            color: green,
+                            backgroundColor: border,
+                            semanticsLabel: 'Microphone level',
+                            borderRadius: BorderRadius.circular(4),
+                            minHeight: 5,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
               ],
             ),
           ),
@@ -395,6 +584,43 @@ class _HfpHomeState extends State<HfpHome> {
       ),
     );
   }
+}
+
+class Panel extends StatelessWidget {
+  const Panel({required this.child, super.key});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    color: card,
+    shape: RoundedRectangleBorder(
+      side: const BorderSide(color: border),
+      borderRadius: BorderRadius.circular(14),
+    ),
+    child: Padding(padding: const EdgeInsets.all(12), child: child),
+  );
+}
+
+class SettingsRow extends StatelessWidget {
+  const SettingsRow({
+    required this.title,
+    required this.icon,
+    required this.onTap,
+    super.key,
+  });
+  final String title;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+    contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+    leading: Icon(icon, color: muted, size: 22),
+    title: Text(title, style: const TextStyle(fontSize: 14)),
+    trailing: const Icon(Icons.open_in_new_rounded, color: muted, size: 18),
+    onTap: onTap,
+  );
 }
 
 class StatusRow extends StatelessWidget {
@@ -414,13 +640,36 @@ class StatusRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
+          Icon(
+            switch (title) {
+              'Bluetooth' => Icons.bluetooth_rounded,
+              'Media' => Icons.music_note_outlined,
+              'Calls' => Icons.call_outlined,
+              _ => Icons.mic_none_rounded,
+            },
+            size: 16,
+            color: muted,
+          ),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
               title,
               style: const TextStyle(color: white, fontSize: 12),
             ),
           ),
-          Text(value, style: TextStyle(color: color, fontSize: 12)),
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 7),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: TextStyle(color: color, fontSize: 12),
+            ),
+          ),
         ],
       ),
     );
@@ -439,12 +688,16 @@ class SelectRow extends StatelessWidget {
     required this.value,
     required this.choices,
     required this.onSelected,
+    required this.icon,
+    this.selectedId,
     this.valueColor = muted,
     super.key,
   });
 
   final String title;
   final String value;
+  final IconData icon;
+  final String? selectedId;
   final Color valueColor;
   final List<Choice> choices;
   final ValueChanged<String?> onSelected;
@@ -455,46 +708,88 @@ class SelectRow extends StatelessWidget {
     tooltip: title,
     color: card,
     surfaceTintColor: card,
-    elevation: 0,
+    elevation: 12,
+    position: PopupMenuPosition.under,
     offset: const Offset(0, 4),
-    constraints: const BoxConstraints(minWidth: 220, maxWidth: 420),
+    constraints: BoxConstraints(
+      minWidth: 220,
+      maxWidth: (MediaQuery.sizeOf(context).width - 48).clamp(220.0, 460.0),
+    ),
     onSelected: onSelected,
     itemBuilder: (_) => choices
         .map(
           (choice) => PopupMenuItem<String?>(
             value: choice.id,
-            child: Text(
-              choice.label,
-              style: const TextStyle(color: white, fontSize: 13),
+            child: Row(
+              children: [
+                Icon(
+                  choice.id == '__pair__'
+                      ? Icons.add_rounded
+                      : choice.id == '__stop__'
+                      ? Icons.stop_circle_outlined
+                      : choice.id == selectedId
+                      ? Icons.check_rounded
+                      : icon,
+                  size: 18,
+                  color: choice.id == selectedId ? green : muted,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    choice.label,
+                    style: TextStyle(
+                      color: choice.id == selectedId ? green : white,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         )
         .toList(),
-    child: Container(
+    child: Ink(
       width: double.infinity,
-      height: 60,
-      padding: const EdgeInsets.symmetric(horizontal: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         color: card,
         border: Border.all(color: border),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         children: [
-          SizedBox(
-            width: 112,
-            child: Text(
-              title,
-              style: const TextStyle(color: white, fontSize: 14),
-            ),
-          ),
+          Icon(icon, color: muted, size: 22),
+          const SizedBox(width: 14),
           Expanded(
-            child: Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.right,
-              style: TextStyle(color: valueColor, fontSize: 13),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: muted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Tooltip(
+                  message: value,
+                  child: Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: choices.isEmpty
+                          ? muted
+                          : valueColor == muted
+                          ? white
+                          : valueColor,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(width: 14),

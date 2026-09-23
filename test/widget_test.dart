@@ -52,29 +52,28 @@ void main() {
         .setMockMethodCallHandler(channel, null);
   });
 
-  testWidgets('shows the three device controls', (tester) async {
+  testWidgets('shows the simplified device controls', (tester) async {
     await tester.pumpWidget(const BluetoothHfpApp());
     await tester.pumpAndSettle();
     expect(find.byType(PopupMenuButton<String?>), findsNWidgets(3));
-    expect(find.text('Bluetooth'), findsOneWidget);
-    expect(find.text('Input'), findsOneWidget);
-    expect(find.text('Output'), findsOneWidget);
-    expect(find.text('Media · Connected'), findsOneWidget);
-    expect(find.text('Calls in this app · Access denied'), findsOneWidget);
-    expect(find.text('Bluetooth link · Connected'), findsOneWidget);
+    expect(find.text('Phone'), findsOneWidget);
+    expect(find.text('Microphone'), findsNWidgets(3));
+    expect(find.text('Headphones'), findsNWidgets(2));
+    expect(find.text('Connected'), findsNWidgets(2));
+    expect(find.text('Blocked'), findsOneWidget);
+    expect(find.text('Bluetooth'), findsNWidgets(2));
     expect(tester.widget<Text>(find.text('iPhone')).style?.color, green);
-    expect(find.text('v1.0.1+2 · Installed app'), findsOneWidget);
+    expect(find.text('Bluetooth HFP'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
-
   testWidgets('Stop routing dispatches null instead of dismissing the menu', (
     tester,
   ) async {
     await tester.pumpWidget(const BluetoothHfpApp());
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Bluetooth'));
+    await tester.tap(find.text('Phone'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Stop routing'));
+    await tester.tap(find.text('Stop'));
     await tester.pumpAndSettle();
     expect(commands.single.method, 'selectPhone');
     expect(commands.single.arguments, isNull);
@@ -98,7 +97,7 @@ void main() {
     (tester) async {
       await tester.pumpWidget(const BluetoothHfpApp());
       await tester.pumpAndSettle();
-      final button = find.text('Use PC for active call');
+      final button = find.text('Use PC for call');
       await tester.ensureVisible(button);
       await tester.tap(button);
       await tester.pumpAndSettle();
@@ -112,7 +111,7 @@ void main() {
   ) async {
     await tester.pumpWidget(const BluetoothHfpApp());
     await tester.pumpAndSettle();
-    final button = find.text('Test mic through headphones (5 seconds)');
+    final button = find.text('Test microphone');
     await tester.ensureVisible(button);
     await tester.tap(button);
     await tester.pumpAndSettle();
@@ -130,37 +129,85 @@ void main() {
     expect(commands.single.method, 'setVoiceMode');
     expect(commands.single.arguments, true);
     expect(tester.widget<SwitchListTile>(toggle).value, isTrue);
-    final transfer = find.widgetWithText(TextButton, 'Use PC for active call');
-    expect(tester.widget<TextButton>(transfer).onPressed, isNull);
-    expect(
-      find.text('Bluetooth microphone: Select an iPhone.'),
-      findsOneWidget,
-    );
+    final transfer = find.widgetWithText(FilledButton, 'Use PC for call');
+    expect(tester.widget<FilledButton>(transfer).onPressed, isNull);
+    expect(find.text('Waiting'), findsOneWidget);
     await tester.ensureVisible(toggle);
     await tester.tap(toggle);
     await tester.pumpAndSettle();
     expect(commands.last.arguments, false);
-    expect(tester.widget<TextButton>(transfer).onPressed, isNotNull);
+    expect(tester.widget<FilledButton>(transfer).onPressed, isNotNull);
     expect(commands.where((call) => call.method == 'requestPcAudio'), isEmpty);
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('timeouts are displayed as failure instead of connecting', (
-    tester,
-  ) async {
+  testWidgets('status labels stay short', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
-          body: ConnectionStatusLine(
-            title: 'Media',
-            state: 'timeout',
-            message: 'Opening media did not respond.',
-          ),
+          body: StatusRow(title: 'Media', value: 'Timed out'),
         ),
       ),
     );
-    expect(find.text('Media · Timed out'), findsOneWidget);
-    expect(find.text('Opening media did not respond.'), findsOneWidget);
-    expect(find.textContaining('In progress'), findsNothing);
+    expect(find.text('Media'), findsOneWidget);
+    expect(find.text('Timed out'), findsOneWidget);
+  });
+
+  testWidgets('settings tab opens system actions and returns to devices', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const BluetoothHfpApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+    expect(find.text('Select iPhone'), findsNothing);
+    expect(find.byType(SelectRow), findsNothing);
+    for (final entry in {
+      'Sound': 'openSoundSettings',
+      'Permissions': 'openCallPermissions',
+      'Phone Link': 'openPhoneLink',
+    }.entries) {
+      await tester.ensureVisible(find.text(entry.key));
+      await tester.tap(find.text(entry.key));
+      await tester.pumpAndSettle();
+      expect(commands.last.method, entry.value);
+    }
+    await tester.tap(
+      find.descendant(
+        of: find.byType(TabBar),
+        matching: find.text('Bluetooth'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(SelectRow), findsNWidgets(3));
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('controls fit a narrow window with large text', (tester) async {
+    tester.view.physicalSize = const Size(360, 740);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData.dark(),
+        home: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(360, 740),
+            textScaler: TextScaler.linear(1.3),
+          ),
+          child: const HfpHome(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Use PC for call'));
+    expect(tester.takeException(), isNull);
+    await tester.ensureVisible(find.text('Phone'));
+    await tester.tap(find.text('Phone'));
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.check_rounded), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
   });
 }
