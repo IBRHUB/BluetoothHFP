@@ -27,19 +27,31 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   std::vector<std::string> command_line_arguments =
       GetCommandLineArguments();
 
+  if (command_line_arguments.size() == 3 && command_line_arguments[0] == "--inspect-endpoint") {
+    std::ofstream report(std::filesystem::u8path(command_line_arguments[1]));
+    const std::string& id = command_line_arguments[2];
+    // Windows endpoint IDs consist of ASCII GUIDs.
+    report << Utf8FromUtf16(InspectAudioEndpoint(std::wstring(id.begin(), id.end())).c_str());
+    ::CoUninitialize();
+    return report ? EXIT_SUCCESS : EXIT_FAILURE;
+  }
+
   // Headless hardware smoke test. Optional address connects the selected phone;
   // it never dials or answers a call. Output remains on the local machine.
-  if (command_line_arguments.size() >= 2 && command_line_arguments[0] == "--diagnose") {
+  if (command_line_arguments.size() >= 2 &&
+      (command_line_arguments[0] == "--diagnose" || command_line_arguments[0] == "--diagnose-route")) {
     std::ofstream report(std::filesystem::u8path(command_line_arguments[1]));
     if (!report) { ::CoUninitialize(); return EXIT_FAILURE; }
     UINT32 package_length = 0;
     report << "Package identity: "
            << (GetCurrentPackageFullName(&package_length, nullptr) == ERROR_INSUFFICIENT_BUFFER)
            << "\n";
+    report << Utf8FromUtf16(InspectAudioDevices().c_str()) << "\n";
     {
       HfpController controller;
       if (command_line_arguments.size() >= 3) {
-        const auto error = controller.SelectPhone(&command_line_arguments[2]);
+        const auto error = controller.SelectPhone(&command_line_arguments[2],
+            command_line_arguments[0] != "--diagnose-route");
         report << "Selection: " << Utf8FromUtf16(error.c_str()) << "\n";
       }
       const int iterations = command_line_arguments.size() >= 3 ? 10 : 1;
@@ -54,6 +66,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
           report << *key << ": ";
           if (const auto* value = std::get_if<std::string>(&entry.second)) report << *value;
           else if (const auto* boolean = std::get_if<bool>(&entry.second)) report << *boolean;
+          else if (const auto* number = std::get_if<double>(&entry.second)) report << *number;
+          else if (const auto* frames = std::get_if<int64_t>(&entry.second)) report << *frames;
           else if (const auto* list = std::get_if<flutter::EncodableList>(&entry.second)) report << list->size() << " devices";
           report << "\n";
         }

@@ -156,10 +156,11 @@ class _HfpHomeState extends State<HfpHome> {
         });
       }
     } on TimeoutException {
-      if (mounted)
+      if (mounted) {
         setState(
           () => error = 'Windows is not responding. Device status could not be refreshed.',
         );
+      }
     } on PlatformException catch (exception) {
       if (mounted) setState(() => error = exception.message ?? exception.code);
     } on MissingPluginException {
@@ -194,17 +195,19 @@ class _HfpHomeState extends State<HfpHome> {
         });
       }
     } on TimeoutException {
-      if (mounted)
+      if (mounted) {
         setState(
           () => error =
               'Windows did not finish the request. Refreshing status...',
         );
+      }
     } on MissingPluginException {
-      if (mounted)
+      if (mounted) {
         setState(
           () => error =
               'Windows audio bridge is unavailable. Restart the installed app.',
         );
+      }
     } on PlatformException catch (exception) {
       if (mounted) setState(() => error = exception.message ?? exception.code);
     } finally {

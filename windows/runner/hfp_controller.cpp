@@ -8,6 +8,7 @@
 #include <mmdeviceapi.h>
 #include <propvarutil.h>
 #include <wrl/client.h>
+#include <setupapi.h>
 
 #include <algorithm>
 #include <cwctype>
@@ -118,6 +119,47 @@ std::vector<Device> Endpoints(EDataFlow flow) {
     PropVariantClear(&name);
     CoTaskMemFree(id);
   }
+  // Windows can omit phone-side HF endpoints from EnumAudioEndpoints even
+  // while Phone Link is using them. Their present AudioEndpoint PnP instances
+  // carry valid MMDevice IDs which GetDevice can open through the public API.
+  // Do not enable devices or modify driver/registry properties to reveal them.
+  constexpr GUID audio_endpoint_class = {0xc166523c, 0xfe0c, 0x4a94,
+      {0xa5, 0x86, 0xf1, 0xa8, 0x0c, 0xfb, 0xbf, 0x3e}};
+  HDEVINFO pnp = SetupDiGetClassDevsW(&audio_endpoint_class, nullptr, nullptr, DIGCF_PRESENT);
+  if (pnp == INVALID_HANDLE_VALUE) return result;
+  SP_DEVINFO_DATA info{};
+  info.cbSize = sizeof(info);
+  for (DWORD i = 0; SetupDiEnumDeviceInfo(pnp, i, &info); ++i) {
+    wchar_t instance[512]{};
+    if (!SetupDiGetDeviceInstanceIdW(pnp, &info, instance, 512, nullptr)) continue;
+    constexpr wchar_t prefix[] = L"SWD\\MMDEVAPI\\";
+    constexpr size_t prefix_length = (sizeof(prefix) / sizeof(wchar_t)) - 1;
+    if (_wcsnicmp(instance, prefix, prefix_length) != 0) continue;
+    ComPtr<IMMDevice> endpoint;
+    if (FAILED(enumerator->GetDevice(instance + prefix_length, &endpoint))) continue;
+    DWORD state = 0;
+    if (FAILED(endpoint->GetState(&state)) || state != DEVICE_STATE_ACTIVE) continue;
+    ComPtr<IMMEndpoint> flow_info;
+    EDataFlow endpoint_flow = eAll;
+    if (FAILED(endpoint.As(&flow_info)) || FAILED(flow_info->GetDataFlow(&endpoint_flow)) ||
+        endpoint_flow != flow) continue;
+    ComPtr<IPropertyStore> properties;
+    PROPVARIANT name;
+    PropVariantInit(&name);
+    if (SUCCEEDED(endpoint->OpenPropertyStore(STGM_READ, &properties)) &&
+        SUCCEEDED(properties->GetValue(PKEY_Device_FriendlyName, &name)) && name.vt == VT_LPWSTR &&
+        Lower(name.pwszVal).find(L"hf audio") != std::wstring::npos) {
+      LPWSTR id = nullptr;
+      if (SUCCEEDED(endpoint->GetId(&id))) {
+        const bool duplicate = std::any_of(result.begin(), result.end(),
+            [&](const Device& device) { return _wcsicmp(device.id.c_str(), id) == 0; });
+        if (!duplicate) result.push_back({id, name.pwszVal, false});
+        CoTaskMemFree(id);
+      }
+    }
+    PropVariantClear(&name);
+  }
+  SetupDiDestroyDeviceInfoList(pnp);
   return result;
 }
 
@@ -266,6 +308,15 @@ flutter::EncodableValue HfpController::Snapshot() {
   const auto transport = transport_.Status();
   UINT32 package_length = 0;
   const bool packaged = GetCurrentPackageFullName(&package_length, nullptr) == ERROR_INSUFFICIENT_BUFFER;
+  std::wstring microphone_message;
+  if (bridge_.microphone_active()) {
+    microphone_message = bridge_.microphone_peak() > 0.001
+        ? L"Microphone signal captured; audio buffers are being sent to the iPhone call endpoint. Confirm the other caller hears you."
+        : L"The iPhone call endpoint is open, but no microphone signal has been detected. Check mute and the selected Input.";
+  } else if (!bridge_.error().empty() && !route_key_.empty()) microphone_message = bridge_.error();
+  else if (selected.id.empty()) microphone_message = L"Select your iPhone to send microphone audio during a call.";
+  else if (phone_render.empty()) microphone_message = L"No active iPhone call uplink is exposed to this app. Media audio has no microphone path. Transfer an active call to this PC.";
+  else microphone_message = L"Opening the microphone path to the iPhone call endpoint.";
   std::wstring test_message = L"Test your microphone through the selected headphones for 5 seconds.";
   if (!test_.error().empty()) test_message = test_.error();
   else if (testing) test_message = L"Speak now: your microphone plays through the selected output (5 seconds).";
@@ -275,6 +326,10 @@ flutter::EncodableValue HfpController::Snapshot() {
         : L"Test finished: no microphone signal detected. Check Input, mute, and Windows microphone permission.";
   flutter::EncodableMap result = {
       {flutter::EncodableValue("appVersion"), flutter::EncodableValue(FLUTTER_VERSION)},
+      {flutter::EncodableValue("microphoneActive"), flutter::EncodableValue(bridge_.microphone_active())},
+      {flutter::EncodableValue("microphonePeak"), flutter::EncodableValue(bridge_.microphone_peak())},
+      {flutter::EncodableValue("microphoneFrames"), flutter::EncodableValue(bridge_.microphone_frames())},
+      {flutter::EncodableValue("microphoneMessage"), flutter::EncodableValue(Utf8FromUtf16(microphone_message.c_str()))},
       {flutter::EncodableValue("packaged"), flutter::EncodableValue(packaged)},
       {flutter::EncodableValue("mediaState"), flutter::EncodableValue(transport.media_state)},
       {flutter::EncodableValue("callsState"), flutter::EncodableValue(bridge_.active() ? "connected" : transport.calls_state)},
@@ -303,7 +358,7 @@ flutter::EncodableValue HfpController::Snapshot() {
   return flutter::EncodableValue(result);
 }
 
-std::wstring HfpController::SelectPhone(const std::string* id) {
+std::wstring HfpController::SelectPhone(const std::string* id, bool connect_transport) {
   const std::wstring target = id ? FromUtf8(*id) : L"";
   if (!target.empty() && !Contains(Phones(), target))
     return L"iPhone is no longer paired.";
@@ -312,7 +367,7 @@ std::wstring HfpController::SelectPhone(const std::string* id) {
   phone_id_ = target;
   test_.Stop();
   test_until_ = {};
-  transport_.Select(target);
+  if (connect_transport) transport_.Select(target);
   bridge_.Stop();
   route_key_.clear();
   return L"";

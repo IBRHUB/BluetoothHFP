@@ -5,6 +5,10 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <cstdint>
+
+std::wstring InspectAudioDevices();
+std::wstring InspectAudioEndpoint(const std::wstring& id);
 
 // A capture-to-render stream in each direction. Windows owns the Bluetooth SCO
 // transport; this class only opens its HFP audio endpoints through WASAPI.
@@ -23,6 +27,9 @@ class AudioBridge {
   void StartTest(const std::wstring& pc_input, const std::wstring& pc_output);
   bool active() const;
   double peak() const { return peak_.load(); }
+  bool microphone_active() const { return outgoing_ready_ && !stop_; }
+  double microphone_peak() const { return microphone_peak_.load(); }
+  int64_t microphone_frames() const { return microphone_frames_.load(); }
   std::wstring error() const;
 
  private:
@@ -34,6 +41,8 @@ class AudioBridge {
   std::atomic<bool> incoming_ready_{false};
   std::atomic<bool> outgoing_ready_{false};
   std::atomic<float> peak_{0};
+  std::atomic<float> microphone_peak_{0};
+  std::atomic<int64_t> microphone_frames_{0};
   std::thread incoming_;
   std::thread outgoing_;
   mutable std::mutex error_mutex_;

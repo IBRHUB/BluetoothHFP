@@ -13,7 +13,7 @@ class HfpController {
  public:
   HfpController();
   flutter::EncodableValue Snapshot();
-  std::wstring SelectPhone(const std::string* id);
+  std::wstring SelectPhone(const std::string* id, bool connect_transport = true);
   std::wstring SelectInput(const std::string& id);
   std::wstring SelectOutput(const std::string& id);
   void Reconnect();

@@ -5,6 +5,9 @@
 #include <mmdeviceapi.h>
 #include <ksmedia.h>
 #include <wrl/client.h>
+#include <functiondiscoverykeys_devpkey.h>
+#include <endpointvolume.h>
+#include <sstream>
 
 #include <algorithm>
 #include <chrono>
@@ -102,13 +105,23 @@ struct Stream {
 };
 
 HRESULT OpenStream(IMMDeviceEnumerator* enumerator, const std::wstring& id,
-                   Stream* stream) {
+                   Stream* stream, bool communications) {
   ComPtr<IMMDevice> device;
   HRESULT hr = enumerator->GetDevice(id.c_str(), &device);
   if (FAILED(hr)) return hr;
   hr = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr,
                         reinterpret_cast<void**>(stream->client.GetAddressOf()));
   if (FAILED(hr)) return hr;
+  if (communications) {
+    ComPtr<IAudioClient2> communication_client;
+    hr = stream->client.As(&communication_client);
+    if (FAILED(hr)) return hr;
+    AudioClientProperties properties{};
+    properties.cbSize = sizeof(properties);
+    properties.eCategory = AudioCategory_Communications;
+    hr = communication_client->SetClientProperties(&properties);
+    if (FAILED(hr)) return hr;
+  }
   hr = stream->client->GetMixFormat(&stream->wave);
   if (FAILED(hr) || !Describe(stream->wave, &stream->format))
     return FAILED(hr) ? hr : AUDCLNT_E_UNSUPPORTED_FORMAT;
@@ -120,7 +133,78 @@ HRESULT OpenStream(IMMDeviceEnumerator* enumerator, const std::wstring& id,
 
 }  // namespace
 
+std::wstring InspectAudioDevices() {
+  std::wostringstream report;
+  ComPtr<IMMDeviceEnumerator> enumerator;
+  HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr,
+      CLSCTX_ALL, IID_PPV_ARGS(&enumerator));
+  if (FAILED(hr)) return L"Audio enumeration failed: " + HResultMessage(hr);
+  ComPtr<IMMDeviceCollection> devices;
+  hr = enumerator->EnumAudioEndpoints(eAll, DEVICE_STATEMASK_ALL, &devices);
+  if (FAILED(hr)) return L"Audio enumeration failed: " + HResultMessage(hr);
+  UINT count = 0;
+  devices->GetCount(&count);
+  for (UINT i = 0; i < count; ++i) {
+    ComPtr<IMMDevice> device;
+    if (FAILED(devices->Item(i, &device))) continue;
+    ComPtr<IPropertyStore> properties;
+    PROPVARIANT name;
+    PropVariantInit(&name);
+    if (SUCCEEDED(device->OpenPropertyStore(STGM_READ, &properties)) &&
+        SUCCEEDED(properties->GetValue(PKEY_Device_FriendlyName, &name)) && name.vt == VT_LPWSTR) {
+      report << name.pwszVal;
+    }
+    PropVariantClear(&name);
+    DWORD state = 0;
+    device->GetState(&state);
+    report << L" | state=" << state;
+    if (state == DEVICE_STATE_ACTIVE) {
+      ComPtr<IAudioEndpointVolume> volume;
+      if (SUCCEEDED(device->Activate(__uuidof(IAudioEndpointVolume), CLSCTX_ALL, nullptr,
+          reinterpret_cast<void**>(volume.GetAddressOf())))) {
+        BOOL muted = FALSE;
+        float level = 0;
+        volume->GetMute(&muted);
+        volume->GetMasterVolumeLevelScalar(&level);
+        report << L" mute=" << muted << L" volume=" << level;
+      }
+      ComPtr<IAudioClient> client;
+      hr = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr,
+          reinterpret_cast<void**>(client.GetAddressOf()));
+      if (SUCCEEDED(hr)) {
+        WAVEFORMATEX* wave = nullptr;
+        hr = client->GetMixFormat(&wave);
+        if (SUCCEEDED(hr)) {
+          report << L" rate=" << wave->nSamplesPerSec << L" channels=" << wave->nChannels
+                 << L" bits=" << wave->wBitsPerSample << L" tag=" << wave->wFormatTag;
+          CoTaskMemFree(wave);
+        }
+      }
+      if (FAILED(hr)) report << L" audio-error=" << HResultMessage(hr);
+    }
+    report << L"\n";
+  }
+  return report.str();
+}
+
 AudioBridge::~AudioBridge() { Stop(); }
+
+std::wstring InspectAudioEndpoint(const std::wstring& id) {
+  ComPtr<IMMDeviceEnumerator> enumerator;
+  HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr,
+      CLSCTX_ALL, IID_PPV_ARGS(&enumerator));
+  if (FAILED(hr)) return L"Enumerator: " + HResultMessage(hr);
+  ComPtr<IMMDevice> device;
+  hr = enumerator->GetDevice(id.c_str(), &device);
+  if (FAILED(hr)) return L"GetDevice: " + HResultMessage(hr);
+  DWORD state = 0;
+  device->GetState(&state);
+  Stream stream;
+  hr = OpenStream(enumerator.Get(), id, &stream, true);
+  return L"Device state=" + std::to_wstring(state) + L"; open communications stream=" +
+      HResultMessage(hr) + L"; rate=" + std::to_wstring(stream.format.rate) +
+      L"; channels=" + std::to_wstring(stream.format.channels);
+}
 
 void AudioBridge::Start(const std::wstring& phone_capture,
                         const std::wstring& pc_output,
@@ -130,6 +214,8 @@ void AudioBridge::Start(const std::wstring& phone_capture,
   stop_ = false;
   incoming_ready_ = false;
   outgoing_ready_ = false;
+  microphone_peak_ = 0;
+  microphone_frames_ = 0;
   SetError(L"");
   incoming_ = std::thread([this, phone_capture, pc_output] {
     Run(phone_capture, pc_output, incoming_ready_);
@@ -174,9 +260,13 @@ void AudioBridge::SetError(const std::wstring& value) {
 void AudioBridge::Run(const std::wstring& capture_id,
                       const std::wstring& render_id,
                       std::atomic<bool>& ready, bool test) {
+  const bool uplink = !test && &ready == &outgoing_ready_;
+  const std::wstring direction = test ? L"Local audio test" : uplink
+      ? L"Microphone -> iPhone" : L"iPhone -> headphones";
   const HRESULT com = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
   if (FAILED(com)) {
-    SetError(L"Cannot initialize Windows audio.");
+    SetError(direction + L": cannot initialize Windows audio (" + HResultMessage(com) + L").");
+    stop_ = true;
     return;
   }
   {
@@ -185,18 +275,17 @@ void AudioBridge::Run(const std::wstring& capture_id,
                                   CLSCTX_ALL, IID_PPV_ARGS(&enumerator));
     Stream capture;
     Stream render;
-    if (SUCCEEDED(hr)) hr = OpenStream(enumerator.Get(), capture_id, &capture);
-    if (SUCCEEDED(hr)) hr = OpenStream(enumerator.Get(), render_id, &render);
+    std::wstring stage = L"create audio enumerator";
+    if (SUCCEEDED(hr)) { stage = L"open capture device"; hr = OpenStream(enumerator.Get(), capture_id, &capture, !test); }
+    if (SUCCEEDED(hr)) { stage = L"open playback device"; hr = OpenStream(enumerator.Get(), render_id, &render, !test); }
     ComPtr<IAudioCaptureClient> capture_service;
     ComPtr<IAudioRenderClient> render_service;
-    if (SUCCEEDED(hr)) hr = capture.client->GetService(IID_PPV_ARGS(&capture_service));
-    if (SUCCEEDED(hr)) hr = render.client->GetService(IID_PPV_ARGS(&render_service));
-    if (SUCCEEDED(hr)) hr = render.client->Start();
-    if (SUCCEEDED(hr)) hr = capture.client->Start();
+    if (SUCCEEDED(hr)) { stage = L"get capture service"; hr = capture.client->GetService(IID_PPV_ARGS(&capture_service)); }
+    if (SUCCEEDED(hr)) { stage = L"get playback service"; hr = render.client->GetService(IID_PPV_ARGS(&render_service)); }
+    if (SUCCEEDED(hr)) { stage = L"start playback"; hr = render.client->Start(); }
+    if (SUCCEEDED(hr)) { stage = L"start capture"; hr = capture.client->Start(); }
     if (FAILED(hr)) {
-      SetError(std::wstring(test ? L"Cannot open the selected microphone/output ("
-                                : L"Cannot open a call audio endpoint (") +
-               HResultMessage(hr) + L").");
+      SetError(direction + L": failed to " + stage + L" (" + HResultMessage(hr) + L").");
       stop_ = true;
     } else {
       ready = true;
@@ -227,6 +316,8 @@ void AudioBridge::Run(const std::wstring& capture_id,
             }
             if (test && std::isfinite(mono) && std::abs(mono) > peak_)
               peak_ = std::abs(mono);
+            if (uplink && std::isfinite(mono) && std::abs(mono) > microphone_peak_)
+              microphone_peak_ = std::abs(mono);
             samples.push_back(mono);
           }
           hr = capture_service->ReleaseBuffer(frames);
@@ -270,11 +361,12 @@ void AudioBridge::Run(const std::wstring& capture_id,
           }
           hr = render_service->ReleaseBuffer(free_frames, 0);
           if (FAILED(hr)) break;
+          if (uplink) microphone_frames_ += free_frames;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
       }
       if (FAILED(hr) && !stop_) {
-        SetError(L"Call audio stopped (" + HResultMessage(hr) + L").");
+        SetError(direction + L": stream stopped (" + HResultMessage(hr) + L").");
         stop_ = true;
       }
       ready = false;
