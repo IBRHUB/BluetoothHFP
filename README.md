@@ -4,6 +4,26 @@ A Flutter desktop interface for receiving iPhone media over Bluetooth and routin
 
 ## Run
 
+### Wired audio (iPhone 12 Pro Max / iOS 17)
+
+The app now supports an explicit two-way WASAPI bridge through audio interfaces,
+without Bluetooth pairing or an active call. See [WIRED-AUDIO.md](WIRED-AUDIO.md)
+for the required Lightning hardware, cabling and phone-side acceptance test.
+A charging/data cable directly between the phone and PC does not expose the
+audio endpoints this feature requires. Phone-side reception remains unverified.
+
+Select **Wired mode**, keep your PC **Microphone** and **Headphones**,
+then select the interface **From phone** capture and **To phone** playback
+endpoints. Press **Start**. Stop is explicit; changing an endpoint
+stops wired routing, and a missing endpoint stops the bridge without substituting
+another device. Reconnect the interface and press Start again. Endpoint choices
+are remembered, but transmitting does not resume automatically after relaunch.
+Two-channel phone audio preserves left/right channels when headphones expose
+at least two channels; the microphone path is mono. Windows default audio output
+is not changed. Device-internal routing and the iOS app determine the final path.
+
+### Bluetooth
+
 1. Install Flutter and Visual Studio with the **Desktop development with C++** workload.
 2. Pair the iPhone with Windows Bluetooth.
 3. Run `flutter build windows --release`, then `powershell -File windows/package/package-windows.ps1 -Register`. Local registration requires Windows Developer Mode. Launch **Bluetooth HFP** from Start or the generated `build/Launch Bluetooth HFP.lnk` so Windows supplies the app's package identity and declared phone capabilities. `flutter run -d windows` remains useful for UI work, but does not supply that identity.

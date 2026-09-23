@@ -104,6 +104,13 @@ class Snapshot {
     this.mediaState = 'idle',
     this.callsState = 'idle',
     this.voiceMode = false,
+    this.wiredMode = false,
+    this.wiredRunning = false,
+    this.wiredAvailable = false,
+    this.wiredCaptureId,
+    this.wiredRenderId,
+    this.wiredInputs = const [],
+    this.wiredOutputs = const [],
   });
 
   final List<Device> phones;
@@ -121,6 +128,13 @@ class Snapshot {
   final String mediaState;
   final String callsState;
   final bool voiceMode;
+  final bool wiredMode;
+  final bool wiredRunning;
+  final bool wiredAvailable;
+  final String? wiredCaptureId;
+  final String? wiredRenderId;
+  final List<Device> wiredInputs;
+  final List<Device> wiredOutputs;
 
   factory Snapshot.fromMap(Map<Object?, Object?> data) {
     List<Device> list(String key) => (data[key] as List<Object?>? ?? [])
@@ -142,6 +156,13 @@ class Snapshot {
       mediaState: data['mediaState'] as String? ?? 'idle',
       callsState: data['callsState'] as String? ?? 'idle',
       voiceMode: data['voiceMode'] as bool? ?? false,
+      wiredMode: data['wiredMode'] as bool? ?? false,
+      wiredRunning: data['wiredRunning'] as bool? ?? false,
+      wiredAvailable: data['wiredAvailable'] as bool? ?? false,
+      wiredCaptureId: data['wiredCaptureId'] as String?,
+      wiredRenderId: data['wiredRenderId'] as String?,
+      wiredInputs: list('wiredInputs'),
+      wiredOutputs: list('wiredOutputs'),
     );
   }
 }
@@ -190,8 +211,10 @@ class _HfpHomeState extends State<HfpHome> {
       if (mounted) {
         setState(() => error = 'Status unavailable');
       }
-    } on PlatformException {
-      if (mounted) setState(() => error = 'Request failed');
+    } on PlatformException catch (exception) {
+      if (mounted) {
+        setState(() => error = exception.message ?? 'Request failed');
+      }
     } on MissingPluginException {
       if (mounted) {
         setState(() => error = 'Connection unavailable');
@@ -231,8 +254,10 @@ class _HfpHomeState extends State<HfpHome> {
       if (mounted) {
         setState(() => error = 'Connection unavailable');
       }
-    } on PlatformException {
-      if (mounted) setState(() => error = 'Request failed');
+    } on PlatformException catch (exception) {
+      if (mounted) {
+        setState(() => error = exception.message ?? 'Request failed');
+      }
     } finally {
       busy = false;
     }
@@ -277,6 +302,7 @@ class _HfpHomeState extends State<HfpHome> {
   Widget build(BuildContext context) {
     final state = snapshot;
     final active = state?.routeActive ?? false;
+    final wired = state?.wiredMode ?? false;
     return Scaffold(
       body: Align(
         alignment: Alignment.topCenter,
@@ -302,24 +328,72 @@ class _HfpHomeState extends State<HfpHome> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                SelectRow(
-                  title: 'Phone',
-                  icon: Icons.smartphone_rounded,
-                  selectedId: state?.phoneId,
-                  value: state == null
-                      ? 'Checking'
-                      : label(state.phones, state.phoneId, 'Select iPhone'),
-                  valueColor: state?.phoneConnected == true ? green : muted,
-                  choices: [
-                    if (state?.phoneId != null)
-                      const Choice('__stop__', 'Stop'),
-                    ...?state?.phones.map(
-                      (device) => Choice(device.id, device.name),
-                    ),
-                    const Choice('__pair__', 'Pair iPhone'),
-                  ],
-                  onSelected: (id) => change('selectPhone', id),
+                TextButton.icon(
+                  icon: Icon(wired ? Icons.bluetooth : Icons.cable),
+                  label: Text(wired ? 'Bluetooth mode' : 'Wired mode'),
+                  onPressed: state == null
+                      ? null
+                      : () => change('setWiredMode', !wired),
                 ),
+                if (error != null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: const Text(
+                      'Request failed',
+                      style: TextStyle(color: red),
+                    ),
+                  ),
+                if (wired) ...[
+                  const SizedBox(height: 12),
+                  SelectRow(
+                    title: 'From phone',
+                    icon: Icons.input,
+                    selectedId: state?.wiredCaptureId,
+                    value: label(
+                      state!.wiredInputs,
+                      state.wiredCaptureId,
+                      'Select interface input',
+                    ),
+                    choices: state.wiredInputs
+                        .map((d) => Choice(d.id, d.name))
+                        .toList(),
+                    onSelected: (id) => change('selectWiredCapture', id),
+                  ),
+                  const SizedBox(height: 12),
+                  SelectRow(
+                    title: 'To phone',
+                    icon: Icons.output,
+                    selectedId: state.wiredRenderId,
+                    value: label(
+                      state.wiredOutputs,
+                      state.wiredRenderId,
+                      'Select interface output',
+                    ),
+                    choices: state.wiredOutputs
+                        .map((d) => Choice(d.id, d.name))
+                        .toList(),
+                    onSelected: (id) => change('selectWiredRender', id),
+                  ),
+                ],
+                if (!wired)
+                  SelectRow(
+                    title: 'Phone',
+                    icon: Icons.smartphone_rounded,
+                    selectedId: state?.phoneId,
+                    value: state == null
+                        ? 'Checking'
+                        : label(state.phones, state.phoneId, 'Select iPhone'),
+                    valueColor: state?.phoneConnected == true ? green : muted,
+                    choices: [
+                      if (state?.phoneId != null)
+                        const Choice('__stop__', 'Stop'),
+                      ...?state?.phones.map(
+                        (device) => Choice(device.id, device.name),
+                      ),
+                      const Choice('__pair__', 'Pair iPhone'),
+                    ],
+                    onSelected: (id) => change('selectPhone', id),
+                  ),
                 const SizedBox(height: 12),
                 SelectRow(
                   title: 'Microphone',
@@ -359,27 +433,29 @@ class _HfpHomeState extends State<HfpHome> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        dense: true,
-                        title: const Text('Voice recording'),
-                        secondary: const Icon(
-                          Icons.graphic_eq_rounded,
-                          color: muted,
-                          size: 22,
+                      if (!wired)
+                        SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          dense: true,
+                          title: const Text('Voice recording'),
+                          secondary: const Icon(
+                            Icons.graphic_eq_rounded,
+                            color: muted,
+                            size: 22,
+                          ),
+                          value: state?.voiceMode ?? false,
+                          onChanged: state?.phoneId == null
+                              ? null
+                              : (enabled) => change('setVoiceMode', enabled),
                         ),
-                        value: state?.voiceMode ?? false,
-                        onChanged: state?.phoneId == null
-                            ? null
-                            : (enabled) => change('setVoiceMode', enabled),
-                      ),
-                      const SizedBox(height: 8),
+                      if (!wired) const SizedBox(height: 8),
                       OutlinedButton.icon(
                         icon: const Icon(Icons.mic_none_rounded, size: 18),
                         onPressed:
                             state?.inputId == null ||
                                 state?.outputId == null ||
                                 state?.testActive == true ||
+                                state?.wiredRunning == true ||
                                 active
                             ? null
                             : () => change('testAudio', null),
@@ -413,92 +489,127 @@ class _HfpHomeState extends State<HfpHome> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final stacked =
-                        constraints.maxWidth < 380 ||
-                        MediaQuery.textScalerOf(context).scale(14) > 18;
-                    final width = stacked
-                        ? constraints.maxWidth
-                        : (constraints.maxWidth - 12) / 2;
-                    return Wrap(
-                      spacing: 12,
-                      runSpacing: 8,
-                      children: [
-                        SizedBox(
-                          width: width,
-                          child: OutlinedButton.icon(
-                            icon: const Icon(Icons.refresh_rounded, size: 18),
-                            onPressed: state?.phoneId == null
-                                ? null
-                                : () => change('reconnect', null),
-                            label: const Text('Reconnect'),
-                          ),
-                        ),
-                        SizedBox(
-                          width: width,
-                          child: FilledButton.icon(
-                            icon: const Icon(
-                              Icons.phone_forwarded_rounded,
-                              size: 18,
+                if (wired) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      icon: Icon(
+                        state!.wiredRunning ? Icons.stop : Icons.play_arrow,
+                      ),
+                      label: Text(state.wiredRunning ? 'Stop' : 'Start'),
+                      onPressed: state.wiredRunning || state.wiredAvailable
+                          ? () => change('setWiredRunning', !state.wiredRunning)
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Panel(
+                    child: StatusRow(
+                      title: 'Wired audio',
+                      value: !state.wiredAvailable
+                          ? 'Select devices'
+                          : !state.wiredRunning
+                          ? 'Stopped'
+                          : state.routeActive
+                          ? 'Streaming'
+                          : state.message.contains('failed') ||
+                                state.message.contains('stopped')
+                          ? 'Failed'
+                          : 'Connecting',
+                    ),
+                  ),
+                ],
+                if (!wired)
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final stacked =
+                          constraints.maxWidth < 380 ||
+                          MediaQuery.textScalerOf(context).scale(14) > 18;
+                      final width = stacked
+                          ? constraints.maxWidth
+                          : (constraints.maxWidth - 12) / 2;
+                      return Wrap(
+                        spacing: 12,
+                        runSpacing: 8,
+                        children: [
+                          SizedBox(
+                            width: width,
+                            child: OutlinedButton.icon(
+                              icon: const Icon(Icons.refresh_rounded, size: 18),
+                              onPressed: state?.phoneId == null
+                                  ? null
+                                  : () => change('reconnect', null),
+                              label: const Text('Reconnect'),
                             ),
-                            onPressed:
-                                state?.phoneId == null ||
-                                    state?.voiceMode == true
-                                ? null
-                                : () => change('requestPcAudio', null),
-                            label: const Text('Use PC for call'),
                           ),
+                          SizedBox(
+                            width: width,
+                            child: FilledButton.icon(
+                              icon: const Icon(
+                                Icons.phone_forwarded_rounded,
+                                size: 18,
+                              ),
+                              onPressed:
+                                  state?.phoneId == null ||
+                                      state?.voiceMode == true
+                                  ? null
+                                  : () => change('requestPcAudio', null),
+                              label: const Text('Use PC for call'),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                const SizedBox(height: 20),
+                if (!wired)
+                  Material(
+                    color: black,
+                    clipBehavior: Clip.antiAlias,
+                    shape: surfaceShape,
+                    child: ExpansionTile(
+                      key: const PageStorageKey('connection-status'),
+                      initiallyExpanded: false,
+                      tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+                      childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                      shape: const Border(),
+                      collapsedShape: const Border(),
+                      iconColor: blue,
+                      collapsedIconColor: muted,
+                      textColor: white,
+                      collapsedTextColor: muted,
+                      leading: const Icon(
+                        Icons.monitor_heart_outlined,
+                        size: 20,
+                      ),
+                      title: const Text(
+                        'Bluetooth',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                      children: [
+                        StatusRow(
+                          title: 'Bluetooth',
+                          value: state?.phoneId == null
+                              ? 'Not connected'
+                              : state!.phoneConnected
+                              ? 'Connected'
+                              : 'Disconnected',
+                        ),
+                        StatusRow(
+                          title: 'Media',
+                          value: connectionLabel(state?.mediaState),
+                        ),
+                        StatusRow(
+                          title: 'Calls',
+                          value: connectionLabel(state?.callsState),
+                        ),
+                        StatusRow(
+                          title: 'Microphone',
+                          value: microphoneLabel(state),
                         ),
                       ],
-                    );
-                  },
-                ),
-                const SizedBox(height: 20),
-                Material(
-                  color: black,
-                  clipBehavior: Clip.antiAlias,
-                  shape: surfaceShape,
-                  child: ExpansionTile(
-                    key: const PageStorageKey('connection-status'),
-                    initiallyExpanded: false,
-                    tilePadding: const EdgeInsets.symmetric(horizontal: 16),
-                    childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                    shape: const Border(),
-                    collapsedShape: const Border(),
-                    iconColor: blue,
-                    collapsedIconColor: muted,
-                    textColor: white,
-                    collapsedTextColor: muted,
-                    leading: const Icon(Icons.monitor_heart_outlined, size: 20),
-                    title: const Text(
-                      'Bluetooth',
-                      style: TextStyle(fontSize: 13),
                     ),
-                    children: [
-                      StatusRow(
-                        title: 'Bluetooth',
-                        value: state?.phoneId == null
-                            ? 'Not connected'
-                            : state!.phoneConnected
-                            ? 'Connected'
-                            : 'Disconnected',
-                      ),
-                      StatusRow(
-                        title: 'Media',
-                        value: connectionLabel(state?.mediaState),
-                      ),
-                      StatusRow(
-                        title: 'Calls',
-                        value: connectionLabel(state?.callsState),
-                      ),
-                      StatusRow(
-                        title: 'Microphone',
-                        value: microphoneLabel(state),
-                      ),
-                    ],
                   ),
-                ),
               ],
             ),
           ),
@@ -606,7 +717,7 @@ class StatusRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = switch (value) {
-      'Connected' || 'Active' => green,
+      'Connected' || 'Active' || 'Streaming' => green,
       'Failed' ||
       'Blocked' ||
       'Timed out' ||

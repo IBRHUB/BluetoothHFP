@@ -10,8 +10,7 @@
 std::wstring InspectAudioDevices();
 std::wstring InspectAudioEndpoint(const std::wstring& id);
 
-// A capture-to-render stream in each direction. Windows owns the Bluetooth SCO
-// transport; this class only opens its HFP audio endpoints through WASAPI.
+// A capture-to-render stream in each direction using explicit WASAPI endpoints.
 class AudioBridge {
  public:
   AudioBridge() = default;
@@ -22,7 +21,7 @@ class AudioBridge {
   void Start(const std::wstring& phone_capture,
              const std::wstring& pc_output,
              const std::wstring& pc_input,
-             const std::wstring& phone_render);
+             const std::wstring& phone_render, bool wired = false);
   void Stop();
   void StartMicrophone(const std::wstring& pc_input,
                        const std::wstring& phone_render);
@@ -40,6 +39,7 @@ class AudioBridge {
   void SetError(const std::wstring& value);
 
   std::atomic<bool> stop_{false};
+  bool wired_ = false;  // Only changed after both worker threads have joined.
   std::atomic<bool> microphone_only_{false};
   std::atomic<bool> incoming_ready_{false};
   std::atomic<bool> outgoing_ready_{false};

@@ -74,7 +74,18 @@ bool FlutterWindow::OnCreate() {
         const auto* arguments = call.arguments();
         const auto* id = arguments ? std::get_if<std::string>(arguments) : nullptr;
         std::wstring error;
-        if (call.method_name() == "setVoiceMode") {
+        if (call.method_name() == "setWiredMode" || call.method_name() == "setWiredRunning") {
+          const auto* enabled = arguments ? std::get_if<bool>(arguments) : nullptr;
+          if (!enabled) {
+            result->Error("invalid_argument", "Wired mode controls require a boolean.");
+            return;
+          }
+          if (call.method_name() == "setWiredMode") hfp_controller_->SetWiredMode(*enabled);
+          else error = hfp_controller_->SetWiredRunning(*enabled);
+        } else if ((call.method_name() == "selectWiredCapture" ||
+                    call.method_name() == "selectWiredRender") && id) {
+          error = hfp_controller_->SelectWiredEndpoint(*id, call.method_name() == "selectWiredCapture");
+        } else if (call.method_name() == "setVoiceMode") {
           const auto* enabled = arguments ? std::get_if<bool>(arguments) : nullptr;
           if (!enabled) {
             result->Error("invalid_argument", "setVoiceMode requires a boolean.");

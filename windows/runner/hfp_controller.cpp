@@ -243,19 +243,20 @@ flutter::EncodableValue NullableId(const std::wstring& value) {
 }  // namespace
 
 HfpController::HfpController()
-    : input_id_(LoadDevice(L"Input")), output_id_(LoadDevice(L"Output")) {}
+    : input_id_(LoadDevice(L"Input")), output_id_(LoadDevice(L"Output")),
+      wired_capture_(LoadDevice(L"WiredCapture")), wired_render_(LoadDevice(L"WiredRender")) {}
 
 flutter::EncodableValue HfpController::Snapshot() {
-  const auto phones = Phones();
+  const auto phones = wired_mode_ ? std::vector<Device>{} : Phones();
   const auto captures = Endpoints(eCapture);
   const auto renders = Endpoints(eRender);
   const auto pc_captures = PcEndpoints(captures);
   const auto pc_renders = PcEndpoints(renders);
   if (input_id_.empty()) input_id_ = DefaultId(eCapture);
   if (output_id_.empty()) output_id_ = DefaultId(eRender);
-  if (!Contains(pc_captures, input_id_))
+  if (!wired_mode_ && !Contains(pc_captures, input_id_))
     input_id_ = pc_captures.empty() ? L"" : pc_captures.front().id;
-  if (!Contains(pc_renders, output_id_))
+  if (!wired_mode_ && !Contains(pc_renders, output_id_))
     output_id_ = pc_renders.empty() ? L"" : pc_renders.front().id;
 
   Device selected;
@@ -282,6 +283,18 @@ flutter::EncodableValue HfpController::Snapshot() {
           phone_render;
   }
   const auto now = std::chrono::steady_clock::now();
+  const bool wired_available = Contains(pc_captures, wired_capture_) &&
+      Contains(pc_renders, wired_render_) && Contains(pc_captures, input_id_) &&
+      Contains(pc_renders, output_id_) && input_id_ != wired_capture_ &&
+      output_id_ != wired_render_;
+  if (wired_mode_) {
+    phone_capture = wired_capture_;
+    phone_render = wired_render_;
+    key.clear();
+    if (wired_running_ && !wired_available) wired_running_ = false;
+    if (wired_running_) key = L"wired|" + phone_capture + L"|" + output_id_ +
+        L"|" + input_id_ + L"|" + phone_render;
+  }
   const bool testing = now < test_until_;
   if (testing) key.clear();
   if (key != route_key_ || (!key.empty() && !bridge_.active() &&
@@ -290,7 +303,7 @@ flutter::EncodableValue HfpController::Snapshot() {
     route_key_ = key;
     if (!key.empty()) {
       if (voice_mode_) bridge_.StartMicrophone(input_id_, phone_render);
-      else bridge_.Start(phone_capture, output_id_, input_id_, phone_render);
+      else bridge_.Start(phone_capture, output_id_, input_id_, phone_render, wired_mode_);
     }
     retry_at_ = now + std::chrono::seconds(10);
   }
@@ -334,6 +347,14 @@ flutter::EncodableValue HfpController::Snapshot() {
   else if (phone_render.empty()) microphone_message = L"No active iPhone call uplink is exposed to this app. Media audio has no microphone path. Transfer an active call to this PC.";
   else microphone_message = L"Opening the microphone path to the iPhone call endpoint.";
   if (voice_mode_) microphone_message = message;
+  if (wired_mode_) {
+    if (!wired_available) message = L"Select four available, separate endpoints: PC microphone, headphones, From phone and To phone. A compatible audio interface is required; a charging cable alone is insufficient.";
+    else if (!wired_running_) message = L"Wired bridge stopped. Press Start wired audio when the interface is connected to your phone.";
+    else if (!bridge_.error().empty()) message = bridge_.error();
+    else if (bridge_.active()) message = L"Windows audio streams are progressing. Verify a phone recording by muting the PC microphone; phone reception is not yet confirmed.";
+    else message = L"Opening wired audio streams...";
+    microphone_message = message;
+  }
   std::wstring test_message = L"Test your microphone through the selected headphones for 5 seconds.";
   if (!test_.error().empty()) test_message = test_.error();
   else if (testing) test_message = L"Speak now: your microphone plays through the selected output (5 seconds).";
@@ -342,6 +363,13 @@ flutter::EncodableValue HfpController::Snapshot() {
         ? L"Test finished: microphone signal received. Did you hear yourself in the headphones?"
         : L"Test finished: no microphone signal detected. Check Input, mute, and Windows microphone permission.";
   flutter::EncodableMap result = {
+      {flutter::EncodableValue("wiredMode"), flutter::EncodableValue(wired_mode_)},
+      {flutter::EncodableValue("wiredRunning"), flutter::EncodableValue(wired_running_)},
+      {flutter::EncodableValue("wiredAvailable"), flutter::EncodableValue(wired_available)},
+      {flutter::EncodableValue("wiredCaptureId"), NullableId(wired_capture_)},
+      {flutter::EncodableValue("wiredRenderId"), NullableId(wired_render_)},
+      {flutter::EncodableValue("wiredInputs"), flutter::EncodableValue(ToList(pc_captures, input_id_))},
+      {flutter::EncodableValue("wiredOutputs"), flutter::EncodableValue(ToList(pc_renders, output_id_))},
       {flutter::EncodableValue("voiceMode"), flutter::EncodableValue(voice_mode_)},
       {flutter::EncodableValue("appVersion"), flutter::EncodableValue(FLUTTER_VERSION)},
       {flutter::EncodableValue("microphoneActive"), flutter::EncodableValue(bridge_.microphone_active())},
@@ -377,6 +405,7 @@ flutter::EncodableValue HfpController::Snapshot() {
 }
 
 std::wstring HfpController::SelectPhone(const std::string* id, bool connect_transport) {
+  if (wired_mode_) return L"Switch to Bluetooth mode before selecting a phone.";
   const std::wstring target = id ? FromUtf8(*id) : L"";
   if (!target.empty() && !Contains(Phones(), target))
     return L"iPhone is no longer paired.";
@@ -393,12 +422,14 @@ std::wstring HfpController::SelectPhone(const std::string* id, bool connect_tran
 }
 
 void HfpController::Reconnect() {
+  if (wired_mode_) return;
   bridge_.Stop();
   route_key_.clear();
   transport_.Select(phone_id_);
 }
 
 void HfpController::SetVoiceMode(bool enabled) {
+  if (wired_mode_) return;
   if (voice_mode_ == enabled) return;
   bridge_.Stop();
   test_.Stop();
@@ -408,6 +439,7 @@ void HfpController::SetVoiceMode(bool enabled) {
 }
 
 std::wstring HfpController::TestAudio() {
+  if (wired_running_) return L"Stop wired audio before testing the microphone.";
   if (bridge_.active()) return L"Stop call routing before testing local audio.";
   if (input_id_.empty() || output_id_.empty()) return L"Select a microphone and headphones first.";
   bridge_.Stop();
@@ -417,11 +449,54 @@ std::wstring HfpController::TestAudio() {
   return L"";
 }
 
+void HfpController::SetWiredMode(bool enabled) {
+  bridge_.Stop();
+  test_.Stop();
+  test_until_ = {};
+  route_key_.clear();
+  voice_mode_ = false;
+  wired_running_ = false;
+  wired_mode_ = enabled;
+  phone_id_.clear();
+  transport_.Select(L"");
+}
+
+std::wstring HfpController::SelectWiredEndpoint(const std::string& id, bool capture) {
+  const auto candidate = FromUtf8(id);
+  if (!Contains(PcEndpoints(Endpoints(capture ? eCapture : eRender)), candidate))
+    return L"Audio interface endpoint is unavailable.";
+  if (candidate == (capture ? input_id_ : output_id_))
+    return L"Choose an interface endpoint separate from the PC microphone and headphones.";
+  SetWiredRunning(false);
+  (capture ? wired_capture_ : wired_render_) = candidate;
+  SaveDevice(capture ? L"WiredCapture" : L"WiredRender", candidate);
+  return L"";
+}
+
+std::wstring HfpController::SetWiredRunning(bool enabled) {
+  bridge_.Stop();
+  route_key_.clear();
+  wired_running_ = false;
+  if (!enabled) return L"";
+  if (!wired_mode_) return L"Select wired mode first.";
+  const auto captures = PcEndpoints(Endpoints(eCapture));
+  const auto renders = PcEndpoints(Endpoints(eRender));
+  if (!Contains(captures, input_id_) || !Contains(captures, wired_capture_) ||
+      !Contains(renders, output_id_) || !Contains(renders, wired_render_) ||
+      input_id_ == wired_capture_ || output_id_ == wired_render_)
+    return L"Select four available, separate PC and phone interface endpoints.";
+  test_.Stop();
+  test_until_ = {};
+  wired_running_ = true;
+  return L"";
+}
+
 std::wstring HfpController::SelectInput(const std::string& id) {
   const std::wstring candidate = FromUtf8(id);
   if (!Contains(PcEndpoints(Endpoints(eCapture)), candidate))
     return L"Microphone is unavailable.";
   input_id_ = candidate;
+  if (wired_mode_) SetWiredRunning(false);
   SaveDevice(L"Input", candidate);
   test_.Stop();
   test_until_ = {};
@@ -433,6 +508,7 @@ std::wstring HfpController::SelectOutput(const std::string& id) {
   if (!Contains(PcEndpoints(Endpoints(eRender)), candidate))
     return L"Output is unavailable.";
   output_id_ = candidate;
+  if (wired_mode_) SetWiredRunning(false);
   SaveDevice(L"Output", candidate);
   test_.Stop();
   test_until_ = {};

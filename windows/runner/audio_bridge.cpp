@@ -10,6 +10,7 @@
 #include <sstream>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -209,8 +210,9 @@ std::wstring InspectAudioEndpoint(const std::wstring& id) {
 void AudioBridge::Start(const std::wstring& phone_capture,
                         const std::wstring& pc_output,
                         const std::wstring& pc_input,
-                        const std::wstring& phone_render) {
+                        const std::wstring& phone_render, bool wired) {
   Stop();
+  wired_ = wired;
   stop_ = false;
   microphone_only_ = false;
   incoming_ready_ = false;
@@ -229,6 +231,7 @@ void AudioBridge::Start(const std::wstring& phone_capture,
 void AudioBridge::StartMicrophone(const std::wstring& pc_input,
                                    const std::wstring& phone_render) {
   Stop();
+  wired_ = false;
   microphone_only_ = true;
   microphone_peak_ = 0;
   microphone_frames_ = 0;
@@ -250,6 +253,7 @@ void AudioBridge::Stop() {
 void AudioBridge::StartTest(const std::wstring& pc_input,
                             const std::wstring& pc_output) {
   Stop();
+  wired_ = false;
   SetError(L"");
   peak_ = 0;
   microphone_only_ = false;
@@ -293,8 +297,8 @@ void AudioBridge::Run(const std::wstring& capture_id,
     Stream capture;
     Stream render;
     std::wstring stage = L"create audio enumerator";
-    if (SUCCEEDED(hr)) { stage = L"open capture device"; hr = OpenStream(enumerator.Get(), capture_id, &capture, !test); }
-    if (SUCCEEDED(hr)) { stage = L"open playback device"; hr = OpenStream(enumerator.Get(), render_id, &render, !test); }
+    if (SUCCEEDED(hr)) { stage = L"open capture device"; hr = OpenStream(enumerator.Get(), capture_id, &capture, !test && !wired_); }
+    if (SUCCEEDED(hr)) { stage = L"open playback device"; hr = OpenStream(enumerator.Get(), render_id, &render, !test && !wired_); }
     ComPtr<IAudioCaptureClient> capture_service;
     ComPtr<IAudioRenderClient> render_service;
     if (SUCCEEDED(hr)) { stage = L"get capture service"; hr = capture.client->GetService(IID_PPV_ARGS(&capture_service)); }
@@ -313,7 +317,9 @@ void AudioBridge::Run(const std::wstring& capture_id,
       auto last_render = started;
       bool captured = false;
       uint64_t submitted = 0;
-      std::deque<float> samples;
+      const bool stereo = wired_ && !uplink && capture.format.channels == 2 &&
+          render.format.channels >= 2;
+      std::deque<std::array<float, 2>> samples;
       double position = 0.0;
       const double step = static_cast<double>(capture.format.rate) /
                           static_cast<double>(render.format.rate);
@@ -332,17 +338,26 @@ void AudioBridge::Run(const std::wstring& capture_id,
           float packet_peak = 0;
           for (UINT32 frame = 0; frame < frames; ++frame) {
             float mono = 0;
+            std::array<float, 2> channels{};
             if (!(flags & AUDCLNT_BUFFERFLAGS_SILENT)) {
               const BYTE* base = data + frame * capture.format.frame_bytes;
               for (UINT channel = 0; channel < capture.format.channels; ++channel)
                 mono += Decode(base + channel * capture.format.bits / 8,
                                capture.format);
               mono /= capture.format.channels;
+              if (stereo) {
+                for (UINT channel = 0; channel < 2; ++channel) {
+                  const float value = Decode(base + channel * capture.format.bits / 8, capture.format);
+                  channels[channel] = std::isfinite(value) ? value : 0;
+                }
+              }
             }
+            if (!std::isfinite(mono)) mono = 0;
             if (test && std::isfinite(mono) && std::abs(mono) > peak_)
               peak_ = std::abs(mono);
             if (std::isfinite(mono)) packet_peak = std::max(packet_peak, std::abs(mono));
-            samples.push_back(mono);
+            if (!stereo) channels = {mono, mono};
+            samples.push_back(channels);
           }
           hr = capture_service->ReleaseBuffer(frames);
           if (FAILED(hr)) break;
@@ -368,15 +383,16 @@ void AudioBridge::Run(const std::wstring& capture_id,
           hr = render_service->GetBuffer(free_frames, &output);
           if (FAILED(hr)) break;
           for (UINT32 frame = 0; frame < free_frames; ++frame) {
-            float sample = 0;
+            std::array<float, 2> sample{};
             // Consume any remaining downsampling debt before interpolation.
             while (position >= 1.0 && !samples.empty()) {
               samples.pop_front();
               position -= 1.0;
             }
             if (samples.size() >= 2 && position < 1.0) {
-              sample = samples[0] +
-                       (samples[1] - samples[0]) * static_cast<float>(position);
+              for (size_t channel = 0; channel < 2; ++channel)
+                sample[channel] = samples[0][channel] +
+                    (samples[1][channel] - samples[0][channel]) * static_cast<float>(position);
               position += step;
               while (position >= 1.0 && samples.size() > 1) {
                 samples.pop_front();
@@ -386,7 +402,7 @@ void AudioBridge::Run(const std::wstring& capture_id,
             BYTE* base = output + frame * render.format.frame_bytes;
             for (UINT channel = 0; channel < render.format.channels; ++channel)
               Encode(base + channel * render.format.bits / 8,
-                     render.format, sample);
+                     render.format, stereo ? (channel < 2 ? sample[channel] : 0.0f) : sample[0]);
           }
           hr = render_service->ReleaseBuffer(free_frames, 0);
           if (FAILED(hr)) break;
@@ -400,7 +416,7 @@ void AudioBridge::Run(const std::wstring& capture_id,
             now - last_render > std::chrono::seconds(3)) {
           SetError(direction +
               L": audio stopped progressing. " +
-              (test ? std::wstring(L"Check the selected Windows audio devices.")
+              (test || wired_ ? std::wstring(L"Check the selected Windows audio devices and interface connection.")
                     : microphone_only_
                     ? std::wstring(L"No progressing Bluetooth microphone route. Start recording on iPhone and select this PC in Audio Input if offered. Retrying automatically; Windows cannot force the iPhone app to select this input.")
                     : std::wstring(L"Select this PC during the iPhone call and check Control Center > app controls > Audio Input. Retrying automatically.")));

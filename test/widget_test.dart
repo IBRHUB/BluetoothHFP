@@ -8,15 +8,35 @@ void main() {
   const channel = MethodChannel('bluetooth_hfp/windows');
   final commands = <MethodCall>[];
   var voiceMode = false;
+  var wiredMode = false;
+  var wiredRunning = false;
+  String? wiredCapture;
+  String? wiredRender;
   setUp(() {
     commands.clear();
     voiceMode = false;
+    wiredMode = false;
+    wiredRunning = false;
+    wiredCapture = null;
+    wiredRender = null;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
           if (call.method != 'snapshot') {
             commands.add(call);
             if (call.method == 'setVoiceMode') {
               voiceMode = call.arguments as bool;
+            }
+            if (call.method == 'setWiredMode') {
+              wiredMode = call.arguments as bool;
+            }
+            if (call.method == 'setWiredRunning') {
+              wiredRunning = call.arguments as bool;
+            }
+            if (call.method == 'selectWiredCapture') {
+              wiredCapture = call.arguments as String;
+            }
+            if (call.method == 'selectWiredRender') {
+              wiredRender = call.arguments as String;
             }
             return null;
           }
@@ -36,6 +56,17 @@ void main() {
             'outputId': 'out-1',
             'routeActive': false,
             'voiceMode': voiceMode,
+            'wiredMode': wiredMode,
+            'wiredRunning': wiredRunning,
+            'wiredAvailable': wiredCapture != null && wiredRender != null,
+            'wiredCaptureId': wiredCapture,
+            'wiredRenderId': wiredRender,
+            'wiredInputs': [
+              {'id': 'interface-in', 'name': 'Interface input'},
+            ],
+            'wiredOutputs': [
+              {'id': 'interface-out', 'name': 'Interface output'},
+            ],
             'message': 'Select an iPhone.',
             'mediaActive': true,
             'mediaMessage': 'Media connected.',
@@ -75,6 +106,58 @@ void main() {
     expect(find.byType(StatusRow), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
+
+  testWidgets(
+    'wired bridge requires interface selection and can stop without Bluetooth',
+    (tester) async {
+      await tester.pumpWidget(const BluetoothHfpApp());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Wired mode'));
+      await tester.pumpAndSettle();
+      expect(find.text('Phone'), findsNothing);
+      expect(find.text('Use PC for call'), findsNothing);
+      expect(find.text('Voice recording'), findsNothing);
+      final start = find.widgetWithText(FilledButton, 'Start');
+      expect(tester.widget<FilledButton>(start).onPressed, isNull);
+      for (final entry in {
+        'From phone': 'Interface input',
+        'To phone': 'Interface output',
+      }.entries) {
+        await tester.ensureVisible(find.text(entry.key));
+        await tester.tap(find.text(entry.key));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(entry.value));
+        await tester.pumpAndSettle();
+      }
+      await tester.ensureVisible(start);
+      await tester.tap(start);
+      await tester.pumpAndSettle();
+      expect(commands.last.method, 'setWiredRunning');
+      expect(commands.last.arguments, true);
+      expect(
+        tester
+            .widget<OutlinedButton>(
+              find.widgetWithText(OutlinedButton, 'Test microphone'),
+            )
+            .onPressed,
+        isNull,
+      );
+      await tester.tap(find.text('Stop'));
+      await tester.pumpAndSettle();
+      expect(commands.last.arguments, false);
+      expect(
+        commands.where(
+          (c) =>
+              c.method == 'selectPhone' ||
+              c.method == 'requestPcAudio' ||
+              c.method == 'reconnect',
+        ),
+        isEmpty,
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
   testWidgets('Stop routing dispatches null instead of dismissing the menu', (
     tester,
   ) async {
