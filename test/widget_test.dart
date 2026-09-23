@@ -56,6 +56,11 @@ void main() {
     await tester.pumpWidget(const BluetoothHfpApp());
     await tester.pumpAndSettle();
     expect(find.byType(PopupMenuButton<String?>), findsNWidgets(3));
+    expect(find.byType(StatusRow), findsNothing);
+    await tester.ensureVisible(find.byType(ExpansionTile));
+    await tester.ensureVisible(find.text('Bluetooth').first);
+    await tester.tap(find.text('Bluetooth').first);
+    await tester.pumpAndSettle();
     expect(find.text('Phone'), findsOneWidget);
     expect(find.text('Microphone'), findsNWidgets(3));
     expect(find.text('Headphones'), findsNWidgets(2));
@@ -63,7 +68,11 @@ void main() {
     expect(find.text('Blocked'), findsOneWidget);
     expect(find.text('Bluetooth'), findsNWidgets(2));
     expect(tester.widget<Text>(find.text('iPhone')).style?.color, green);
-    expect(find.text('Bluetooth HFP'), findsOneWidget);
+    expect(find.text('Bluetooth HFP'), findsNothing);
+    await tester.ensureVisible(find.text('Bluetooth').first);
+    await tester.tap(find.text('Bluetooth').first);
+    await tester.pumpAndSettle();
+    expect(find.byType(StatusRow), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
   testWidgets('Stop routing dispatches null instead of dismissing the menu', (
@@ -131,7 +140,7 @@ void main() {
     expect(tester.widget<SwitchListTile>(toggle).value, isTrue);
     final transfer = find.widgetWithText(FilledButton, 'Use PC for call');
     expect(tester.widget<FilledButton>(transfer).onPressed, isNull);
-    expect(find.text('Waiting'), findsOneWidget);
+    expect(find.byType(StatusRow), findsNothing);
     await tester.ensureVisible(toggle);
     await tester.tap(toggle);
     await tester.pumpAndSettle();
@@ -153,7 +162,7 @@ void main() {
     expect(find.text('Timed out'), findsOneWidget);
   });
 
-  testWidgets('settings tab opens system actions and returns to devices', (
+  testWidgets('settings button opens a separate page and returns to devices', (
     tester,
   ) async {
     await tester.pumpWidget(const BluetoothHfpApp());
@@ -172,12 +181,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(commands.last.method, entry.value);
     }
-    await tester.tap(
-      find.descendant(
-        of: find.byType(TabBar),
-        matching: find.text('Bluetooth'),
-      ),
-    );
+    await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
     expect(find.byType(SelectRow), findsNWidgets(3));
     await tester.pumpWidget(const SizedBox());
