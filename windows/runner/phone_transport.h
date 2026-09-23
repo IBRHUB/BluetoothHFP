@@ -26,6 +26,7 @@ class PhoneTransport {
   PhoneTransport();
   ~PhoneTransport();
   void Select(const std::wstring& address);
+  void RequestPcAudio();
   TransportStatus Status() const;
   void Stop();
 
@@ -37,6 +38,7 @@ class PhoneTransport {
   TransportStatus status_;
   std::atomic<unsigned long> revision_{0};
   std::atomic<bool> stop_{false};
+  bool audio_requested_ = false;
   std::thread worker_;
 };
 

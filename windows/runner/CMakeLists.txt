@@ -40,5 +40,24 @@ target_link_libraries(${BINARY_NAME} PRIVATE "dwmapi.lib")
 target_link_libraries(${BINARY_NAME} PRIVATE "ole32.lib" "bthprops.lib" "uuid.lib" "shell32.lib" "windowsapp.lib" "advapi32.lib" "setupapi.lib")
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 
+# PhoneCall audio transfer requires CallsPhoneContract v6 (Windows 20348+).
+# Generate projections from the build host metadata so the 19041 SDK compiler
+# can also build this Windows 11 feature. No generated headers are committed.
+get_filename_component(HFP_KITS_ROOT
+  "[HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows Kits\\Installed Roots;KitsRoot10]" ABSOLUTE)
+find_program(HFP_CPPWINRT cppwinrt.exe HINTS
+  "${HFP_KITS_ROOT}/bin/${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}/x64")
+set(HFP_METADATA "$ENV{WINDIR}/System32/WinMetadata" CACHE PATH "Windows 20348+ WinRT metadata")
+if(NOT HFP_CPPWINRT OR NOT EXISTS "${HFP_METADATA}/Windows.ApplicationModel.winmd")
+  message(FATAL_ERROR "Install Windows SDK with cppwinrt and build on Windows 11 (or set HFP_METADATA).")
+endif()
+set(HFP_PROJECTION "${CMAKE_CURRENT_BINARY_DIR}/hfp-winrt")
+execute_process(COMMAND "${HFP_CPPWINRT}" -input "${HFP_METADATA}" -output "${HFP_PROJECTION}"
+  RESULT_VARIABLE HFP_PROJECTION_RESULT)
+if(NOT HFP_PROJECTION_RESULT EQUAL 0)
+  message(FATAL_ERROR "Failed to generate current Windows call API projection")
+endif()
+target_include_directories(${BINARY_NAME} BEFORE PRIVATE "${HFP_PROJECTION}")
+
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)

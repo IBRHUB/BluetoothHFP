@@ -52,6 +52,11 @@ bool FlutterWindow::OnCreate() {
           result->Success();
           return;
         }
+        if (call.method_name() == "requestPcAudio") {
+          hfp_controller_->RequestPcAudio();
+          result->Success();
+          return;
+        }
         if (call.method_name() == "openBluetoothSettings" ||
             call.method_name() == "openSoundSettings" ||
             call.method_name() == "openCallPermissions" ||
@@ -69,7 +74,14 @@ bool FlutterWindow::OnCreate() {
         const auto* arguments = call.arguments();
         const auto* id = arguments ? std::get_if<std::string>(arguments) : nullptr;
         std::wstring error;
-        if (call.method_name() == "testAudio") {
+        if (call.method_name() == "setVoiceMode") {
+          const auto* enabled = arguments ? std::get_if<bool>(arguments) : nullptr;
+          if (!enabled) {
+            result->Error("invalid_argument", "setVoiceMode requires a boolean.");
+            return;
+          }
+          hfp_controller_->SetVoiceMode(*enabled);
+        } else if (call.method_name() == "testAudio") {
           error = hfp_controller_->TestAudio();
         } else if (call.method_name() == "selectPhone") {
           error = hfp_controller_->SelectPhone(id);

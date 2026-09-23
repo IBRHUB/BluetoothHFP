@@ -1,5 +1,6 @@
-param([ValidatePattern('^[0-9A-Fa-f]{12}$')][string]$PhoneAddress)
+param([ValidatePattern('^[0-9A-Fa-f]{12}$')][string]$PhoneAddress, [switch]$TransferActiveCall, [switch]$VoiceMode)
 $ErrorActionPreference = 'Stop'
+if ($TransferActiveCall -and $VoiceMode) { throw 'VoiceMode cannot be combined with TransferActiveCall.' }
 $repo = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $package = Get-AppxPackage -Name BluetoothHFP.Desktop
 if (!$package) { throw 'Register the package first: ./windows/package/package-windows.ps1 -Register' }
@@ -21,6 +22,8 @@ public static class BluetoothHfpActivation {
 '@
 $report = Join-Path $repo 'build/connection-diagnostics.txt'
 $arguments = '--diagnose "' + $report + '"'
+if ($TransferActiveCall) { $arguments = '--diagnose-transfer "' + $report + '"' }
+if ($VoiceMode) { $arguments = '--diagnose-voice "' + $report + '"' }
 if ($PhoneAddress) { $arguments += ' ' + $PhoneAddress }
 $appProcess = [BluetoothHfpActivation]::Start(($package.PackageFamilyName + '!App'), $arguments)
 $process = Get-Process -Id $appProcess -ErrorAction SilentlyContinue

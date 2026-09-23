@@ -7,12 +7,17 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const channel = MethodChannel('bluetooth_hfp/windows');
   final commands = <MethodCall>[];
+  var voiceMode = false;
   setUp(() {
     commands.clear();
+    voiceMode = false;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
           if (call.method != 'snapshot') {
             commands.add(call);
+            if (call.method == 'setVoiceMode') {
+              voiceMode = call.arguments as bool;
+            }
             return null;
           }
           return {
@@ -30,6 +35,7 @@ void main() {
             'inputId': 'mic-1',
             'outputId': 'out-1',
             'routeActive': false,
+            'voiceMode': voiceMode,
             'message': 'Select an iPhone.',
             'mediaActive': true,
             'mediaMessage': 'Media connected.',
@@ -87,6 +93,20 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  testWidgets(
+    'call transfer dispatches a separate request without reconnecting',
+    (tester) async {
+      await tester.pumpWidget(const BluetoothHfpApp());
+      await tester.pumpAndSettle();
+      final button = find.text('Use PC for active call');
+      await tester.ensureVisible(button);
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+      expect(commands.single.method, 'requestPcAudio');
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
   testWidgets('local audio test works without an active iPhone call', (
     tester,
   ) async {
@@ -97,6 +117,31 @@ void main() {
     await tester.tap(button);
     await tester.pumpAndSettle();
     expect(commands.single.method, 'testAudio');
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('voice mode toggles without transferring a call', (tester) async {
+    await tester.pumpWidget(const BluetoothHfpApp());
+    await tester.pumpAndSettle();
+    final toggle = find.byType(SwitchListTile);
+    await tester.ensureVisible(toggle);
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(commands.single.method, 'setVoiceMode');
+    expect(commands.single.arguments, true);
+    expect(tester.widget<SwitchListTile>(toggle).value, isTrue);
+    final transfer = find.widgetWithText(TextButton, 'Use PC for active call');
+    expect(tester.widget<TextButton>(transfer).onPressed, isNull);
+    expect(
+      find.text('Bluetooth microphone: Select an iPhone.'),
+      findsOneWidget,
+    );
+    await tester.ensureVisible(toggle);
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+    expect(commands.last.arguments, false);
+    expect(tester.widget<TextButton>(transfer).onPressed, isNotNull);
+    expect(commands.where((call) => call.method == 'requestPcAudio'), isEmpty);
     await tester.pumpWidget(const SizedBox());
   });
 

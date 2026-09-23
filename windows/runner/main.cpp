@@ -39,7 +39,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   // Headless hardware smoke test. Optional address connects the selected phone;
   // it never dials or answers a call. Output remains on the local machine.
   if (command_line_arguments.size() >= 2 &&
-      (command_line_arguments[0] == "--diagnose" || command_line_arguments[0] == "--diagnose-route")) {
+      (command_line_arguments[0] == "--diagnose" || command_line_arguments[0] == "--diagnose-route" ||
+       command_line_arguments[0] == "--diagnose-transfer" ||
+       command_line_arguments[0] == "--diagnose-voice")) {
     std::ofstream report(std::filesystem::u8path(command_line_arguments[1]));
     if (!report) { ::CoUninitialize(); return EXIT_FAILURE; }
     UINT32 package_length = 0;
@@ -49,15 +51,25 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     report << Utf8FromUtf16(InspectAudioDevices().c_str()) << "\n";
     {
       HfpController controller;
+      controller.SetVoiceMode(command_line_arguments[0] == "--diagnose-voice");
       if (command_line_arguments.size() >= 3) {
         const auto error = controller.SelectPhone(&command_line_arguments[2],
             command_line_arguments[0] != "--diagnose-route");
         report << "Selection: " << Utf8FromUtf16(error.c_str()) << "\n";
       }
       const int iterations = command_line_arguments.size() >= 3 ? 10 : 1;
+      bool transfer_requested = false;
       for (int i = 0; i < iterations; ++i) {
         const auto snapshot = controller.Snapshot();
         const auto& values = std::get<flutter::EncodableMap>(snapshot);
+        if (command_line_arguments[0] == "--diagnose-transfer" && !transfer_requested) {
+          auto state = values.find(flutter::EncodableValue("callsState"));
+          if (state != values.end() && std::get_if<std::string>(&state->second) &&
+              std::get<std::string>(state->second) == "connected") {
+            controller.RequestPcAudio();
+            transfer_requested = true;
+          }
+        }
         report << "--- " << i * 5 << " seconds ---\n";
         for (const auto& entry : values) {
           const auto* key = std::get_if<std::string>(&entry.first);

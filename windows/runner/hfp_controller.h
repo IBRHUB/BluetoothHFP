@@ -17,7 +17,9 @@ class HfpController {
   std::wstring SelectInput(const std::string& id);
   std::wstring SelectOutput(const std::string& id);
   void Reconnect();
+  void RequestPcAudio() { transport_.RequestPcAudio(); }
   std::wstring TestAudio();
+  void SetVoiceMode(bool enabled);
   void Stop() { test_.Stop(); transport_.Stop(); bridge_.Stop(); }
 
  private:
@@ -25,6 +27,7 @@ class HfpController {
   std::wstring input_id_;
   std::wstring output_id_;
   std::wstring route_key_;
+  bool voice_mode_ = false;
   AudioBridge bridge_;
   AudioBridge test_;
   std::chrono::steady_clock::time_point test_until_{};

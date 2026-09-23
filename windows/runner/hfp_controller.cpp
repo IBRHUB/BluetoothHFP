@@ -274,7 +274,9 @@ flutter::EncodableValue HfpController::Snapshot() {
     phone_render = PhoneEndpoint(renders, selected.name, phones.size() == 1);
   }
   std::wstring key;
-  if (selected.connected && !input_id_.empty() && !output_id_.empty() &&
+  if (voice_mode_ && selected.connected && !input_id_.empty() && !phone_render.empty()) {
+    key = L"voice|" + input_id_ + L"|" + phone_render;
+  } else if (!voice_mode_ && selected.connected && !input_id_.empty() && !output_id_.empty() &&
       !phone_capture.empty() && !phone_render.empty()) {
     key = phone_capture + L"|" + output_id_ + L"|" + input_id_ + L"|" +
           phone_render;
@@ -286,13 +288,16 @@ flutter::EncodableValue HfpController::Snapshot() {
                            !bridge_.error().empty() && now >= retry_at_)) {
     bridge_.Stop();
     route_key_ = key;
-    if (!key.empty()) bridge_.Start(phone_capture, output_id_, input_id_, phone_render);
+    if (!key.empty()) {
+      if (voice_mode_) bridge_.StartMicrophone(input_id_, phone_render);
+      else bridge_.Start(phone_capture, output_id_, input_id_, phone_render);
+    }
     retry_at_ = now + std::chrono::seconds(10);
   }
 
   std::wstring message;
   if (bridge_.active())
-    message = L"Call audio is routed through your selected devices.";
+    message = L"Windows audio streams are progressing. Confirm the other caller hears your PC microphone.";
   else if (selected.id.empty())
     message = L"Pair your iPhone in Windows Bluetooth settings, then select it.";
   else if (!selected.connected)
@@ -303,6 +308,17 @@ flutter::EncodableValue HfpController::Snapshot() {
     message = L"This app is not routing call audio. Phone Link may be handling calls; no usable phone audio endpoints are currently exposed to this app.";
   else if (!bridge_.error().empty()) message = bridge_.error();
   else message = L"Opening call audio…";
+
+  if (voice_mode_) {
+    if (testing) message = L"Bluetooth microphone paused during the local audio test.";
+    else if (selected.id.empty()) message = L"Select a paired iPhone for the Bluetooth microphone experiment.";
+    else if (!selected.connected) message = L"Waiting for the iPhone Bluetooth connection.";
+    else if (input_id_.empty()) message = L"Select a PC microphone.";
+    else if (phone_render.empty()) message = L"No Bluetooth microphone endpoint is available. Start recording on iPhone and select this PC in Audio Input if listed. Windows cannot force it to appear.";
+    else if (!bridge_.error().empty()) message = bridge_.error();
+    else if (bridge_.active()) message = L"Windows microphone buffers are progressing. This does not confirm iPhone reception: play back a test recording and verify the source by muting the PC microphone.";
+    else message = L"Opening Bluetooth microphone without a call. Waiting for audio buffer progress.";
+  }
 
   // Exclude the selected phone endpoints from PC input/output choices.
   const auto transport = transport_.Status();
@@ -317,6 +333,7 @@ flutter::EncodableValue HfpController::Snapshot() {
   else if (selected.id.empty()) microphone_message = L"Select your iPhone to send microphone audio during a call.";
   else if (phone_render.empty()) microphone_message = L"No active iPhone call uplink is exposed to this app. Media audio has no microphone path. Transfer an active call to this PC.";
   else microphone_message = L"Opening the microphone path to the iPhone call endpoint.";
+  if (voice_mode_) microphone_message = message;
   std::wstring test_message = L"Test your microphone through the selected headphones for 5 seconds.";
   if (!test_.error().empty()) test_message = test_.error();
   else if (testing) test_message = L"Speak now: your microphone plays through the selected output (5 seconds).";
@@ -325,6 +342,7 @@ flutter::EncodableValue HfpController::Snapshot() {
         ? L"Test finished: microphone signal received. Did you hear yourself in the headphones?"
         : L"Test finished: no microphone signal detected. Check Input, mute, and Windows microphone permission.";
   flutter::EncodableMap result = {
+      {flutter::EncodableValue("voiceMode"), flutter::EncodableValue(voice_mode_)},
       {flutter::EncodableValue("appVersion"), flutter::EncodableValue(FLUTTER_VERSION)},
       {flutter::EncodableValue("microphoneActive"), flutter::EncodableValue(bridge_.microphone_active())},
       {flutter::EncodableValue("microphonePeak"), flutter::EncodableValue(bridge_.microphone_peak())},
@@ -332,7 +350,7 @@ flutter::EncodableValue HfpController::Snapshot() {
       {flutter::EncodableValue("microphoneMessage"), flutter::EncodableValue(Utf8FromUtf16(microphone_message.c_str()))},
       {flutter::EncodableValue("packaged"), flutter::EncodableValue(packaged)},
       {flutter::EncodableValue("mediaState"), flutter::EncodableValue(transport.media_state)},
-      {flutter::EncodableValue("callsState"), flutter::EncodableValue(bridge_.active() ? "connected" : transport.calls_state)},
+      {flutter::EncodableValue("callsState"), flutter::EncodableValue(transport.calls_state)},
       {flutter::EncodableValue("testActive"), flutter::EncodableValue(testing)},
       {flutter::EncodableValue("testRouteActive"), flutter::EncodableValue(test_.active())},
       {flutter::EncodableValue("testPeak"), flutter::EncodableValue(
@@ -365,6 +383,7 @@ std::wstring HfpController::SelectPhone(const std::string* id, bool connect_tran
   // BluetoothSetServiceState installs or removes a profile driver; it does not
   // connect a call. Use the phone transport API and keep the profile installed.
   phone_id_ = target;
+  if (target.empty()) voice_mode_ = false;
   test_.Stop();
   test_until_ = {};
   if (connect_transport) transport_.Select(target);
@@ -377,6 +396,15 @@ void HfpController::Reconnect() {
   bridge_.Stop();
   route_key_.clear();
   transport_.Select(phone_id_);
+}
+
+void HfpController::SetVoiceMode(bool enabled) {
+  if (voice_mode_ == enabled) return;
+  bridge_.Stop();
+  test_.Stop();
+  test_until_ = {};
+  route_key_.clear();
+  voice_mode_ = enabled;
 }
 
 std::wstring HfpController::TestAudio() {

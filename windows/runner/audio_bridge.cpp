@@ -212,6 +212,7 @@ void AudioBridge::Start(const std::wstring& phone_capture,
                         const std::wstring& phone_render) {
   Stop();
   stop_ = false;
+  microphone_only_ = false;
   incoming_ready_ = false;
   outgoing_ready_ = false;
   microphone_peak_ = 0;
@@ -220,6 +221,19 @@ void AudioBridge::Start(const std::wstring& phone_capture,
   incoming_ = std::thread([this, phone_capture, pc_output] {
     Run(phone_capture, pc_output, incoming_ready_);
   });
+  outgoing_ = std::thread([this, pc_input, phone_render] {
+    Run(pc_input, phone_render, outgoing_ready_);
+  });
+}
+
+void AudioBridge::StartMicrophone(const std::wstring& pc_input,
+                                   const std::wstring& phone_render) {
+  Stop();
+  microphone_only_ = true;
+  microphone_peak_ = 0;
+  microphone_frames_ = 0;
+  SetError(L"");
+  stop_ = false;
   outgoing_ = std::thread([this, pc_input, phone_render] {
     Run(pc_input, phone_render, outgoing_ready_);
   });
@@ -238,6 +252,7 @@ void AudioBridge::StartTest(const std::wstring& pc_input,
   Stop();
   SetError(L"");
   peak_ = 0;
+  microphone_only_ = false;
   stop_ = false;
   outgoing_ready_ = true;
   incoming_ = std::thread([this, pc_input, pc_output] {
@@ -245,7 +260,9 @@ void AudioBridge::StartTest(const std::wstring& pc_input,
   });
 }
 
-bool AudioBridge::active() const { return incoming_ready_ && outgoing_ready_; }
+bool AudioBridge::active() const {
+  return !stop_ && outgoing_ready_ && (microphone_only_ || incoming_ready_);
+}
 
 std::wstring AudioBridge::error() const {
   std::lock_guard<std::mutex> lock(error_mutex_);
@@ -288,7 +305,14 @@ void AudioBridge::Run(const std::wstring& capture_id,
       SetError(direction + L": failed to " + stage + L" (" + HResultMessage(hr) + L").");
       stop_ = true;
     } else {
-      ready = true;
+      // Start() can succeed on an idle HF endpoint whose buffer never drains.
+      // Report readiness only after capture and playback actually progress.
+      ready = false;
+      const auto started = std::chrono::steady_clock::now();
+      auto last_capture = started;
+      auto last_render = started;
+      bool captured = false;
+      uint64_t submitted = 0;
       std::deque<float> samples;
       double position = 0.0;
       const double step = static_cast<double>(capture.format.rate) /
@@ -305,6 +329,7 @@ void AudioBridge::Run(const std::wstring& capture_id,
           DWORD flags = 0;
           hr = capture_service->GetBuffer(&data, &frames, &flags, nullptr, nullptr);
           if (FAILED(hr)) break;
+          float packet_peak = 0;
           for (UINT32 frame = 0; frame < frames; ++frame) {
             float mono = 0;
             if (!(flags & AUDCLNT_BUFFERFLAGS_SILENT)) {
@@ -316,12 +341,16 @@ void AudioBridge::Run(const std::wstring& capture_id,
             }
             if (test && std::isfinite(mono) && std::abs(mono) > peak_)
               peak_ = std::abs(mono);
-            if (uplink && std::isfinite(mono) && std::abs(mono) > microphone_peak_)
-              microphone_peak_ = std::abs(mono);
+            if (std::isfinite(mono)) packet_peak = std::max(packet_peak, std::abs(mono));
             samples.push_back(mono);
           }
           hr = capture_service->ReleaseBuffer(frames);
           if (FAILED(hr)) break;
+          if (frames > 0) {
+            captured = true;
+            last_capture = std::chrono::steady_clock::now();
+            if (uplink) microphone_peak_ = std::max(packet_peak, microphone_peak_.load() * 0.95f);
+          }
           hr = capture_service->GetNextPacketSize(&pending);
           if (FAILED(hr)) break;
         }
@@ -361,7 +390,22 @@ void AudioBridge::Run(const std::wstring& capture_id,
           }
           hr = render_service->ReleaseBuffer(free_frames, 0);
           if (FAILED(hr)) break;
+          submitted += free_frames;
+          last_render = std::chrono::steady_clock::now();
           if (uplink) microphone_frames_ += free_frames;
+        }
+        ready = captured && submitted > render.frames;
+        const auto now = std::chrono::steady_clock::now();
+        if (now - last_capture > std::chrono::seconds(3) ||
+            now - last_render > std::chrono::seconds(3)) {
+          SetError(direction +
+              L": audio stopped progressing. " +
+              (test ? std::wstring(L"Check the selected Windows audio devices.")
+                    : microphone_only_
+                    ? std::wstring(L"No progressing Bluetooth microphone route. Start recording on iPhone and select this PC in Audio Input if offered. Retrying automatically; Windows cannot force the iPhone app to select this input.")
+                    : std::wstring(L"Select this PC during the iPhone call and check Control Center > app controls > Audio Input. Retrying automatically.")));
+          stop_ = true;
+          break;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
       }
@@ -370,6 +414,7 @@ void AudioBridge::Run(const std::wstring& capture_id,
         stop_ = true;
       }
       ready = false;
+      if (uplink) microphone_peak_ = 0;
     }
   }
   CoUninitialize();

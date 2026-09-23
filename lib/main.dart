@@ -51,16 +51,12 @@ class Snapshot {
     required this.outputId,
     required this.routeActive,
     required this.message,
-    this.mediaActive = false,
-    this.mediaMessage = 'Select an iPhone to receive media.',
-    this.callsMessage = 'Select an iPhone to connect calls.',
     this.testActive = false,
     this.testPeak = 0,
     this.testMessage = '',
     this.mediaState = 'idle',
     this.callsState = 'idle',
-    this.appVersion = '',
-    this.packaged = false,
+    this.voiceMode = false,
   });
 
   final List<Device> phones;
@@ -72,16 +68,12 @@ class Snapshot {
   final String? outputId;
   final bool routeActive;
   final String message;
-  final bool mediaActive;
-  final String mediaMessage;
-  final String callsMessage;
   final bool testActive;
   final double testPeak;
   final String testMessage;
   final String mediaState;
   final String callsState;
-  final String appVersion;
-  final bool packaged;
+  final bool voiceMode;
 
   factory Snapshot.fromMap(Map<Object?, Object?> data) {
     List<Device> list(String key) => (data[key] as List<Object?>? ?? [])
@@ -97,20 +89,12 @@ class Snapshot {
       outputId: data['outputId'] as String?,
       routeActive: data['routeActive'] as bool? ?? false,
       message: data['message'] as String? ?? '',
-      mediaActive: data['mediaActive'] as bool? ?? false,
-      mediaMessage:
-          data['mediaMessage'] as String? ??
-          'Select an iPhone to receive media.',
-      callsMessage:
-          data['callsMessage'] as String? ??
-          'Select an iPhone to connect calls.',
       testActive: data['testActive'] as bool? ?? false,
       testPeak: (data['testPeak'] as num?)?.toDouble() ?? 0,
       testMessage: data['testMessage'] as String? ?? '',
       mediaState: data['mediaState'] as String? ?? 'idle',
       callsState: data['callsState'] as String? ?? 'idle',
-      appVersion: data['appVersion'] as String? ?? '',
-      packaged: data['packaged'] as bool? ?? false,
+      voiceMode: data['voiceMode'] as bool? ?? false,
     );
   }
 }
@@ -157,22 +141,20 @@ class _HfpHomeState extends State<HfpHome> {
       }
     } on TimeoutException {
       if (mounted) {
-        setState(
-          () => error = 'Windows is not responding. Device status could not be refreshed.',
-        );
+        setState(() => error = 'Status unavailable');
       }
     } on PlatformException catch (exception) {
-      if (mounted) setState(() => error = exception.message ?? exception.code);
+      if (mounted) setState(() => error = 'Request failed');
     } on MissingPluginException {
       if (mounted) {
-        setState(() => error = 'Windows audio bridge is unavailable.');
+        setState(() => error = 'Connection unavailable');
       }
     } finally {
       busy = false;
     }
   }
 
-  Future<void> change(String method, String? id) async {
+  Future<void> change(String method, Object? id) async {
     if (busy) return;
     busy = true;
     try {
@@ -196,45 +178,59 @@ class _HfpHomeState extends State<HfpHome> {
       }
     } on TimeoutException {
       if (mounted) {
-        setState(
-          () => error =
-              'Windows did not finish the request. Refreshing status...',
-        );
+        setState(() => error = 'Request timed out');
       }
     } on MissingPluginException {
       if (mounted) {
-        setState(
-          () => error =
-              'Windows audio bridge is unavailable. Restart the installed app.',
-        );
+        setState(() => error = 'Connection unavailable');
       }
     } on PlatformException catch (exception) {
-      if (mounted) setState(() => error = exception.message ?? exception.code);
+      if (mounted) setState(() => error = 'Request failed');
     } finally {
       busy = false;
     }
   }
 
-  String label(List<Device> devices, String? id, String fallback) {
-    for (final device in devices) {
-      if (device.id == id) return device.name;
+  String connectionLabel(String? value) => switch (value) {
+    'connected' => 'Connected',
+    'connecting' => 'Connecting',
+    'waiting' => 'Waiting',
+    'blocked' => 'Blocked',
+    'unavailable' => 'Unavailable',
+    'timeout' => 'Timed out',
+    'error' => 'Failed',
+    'disconnected' => 'Disconnected',
+    _ => 'Not connected',
+  };
+
+  String microphoneLabel(Snapshot? state) {
+    if (error != null) return error!;
+    if (state == null) return 'Checking';
+    if (state.phoneId == null) return 'Choose iPhone';
+    if (!state.phoneConnected) return 'Connect iPhone';
+    if (state.routeActive) return 'Active';
+    final message = state.message.toLowerCase();
+    if (message.contains('not routing') || message.contains('no usable')) {
+      return 'Unavailable';
     }
-    return fallback;
+    if (message.contains('opening') || message.contains('progressing')) {
+      return 'Connecting';
+    }
+    return 'Waiting';
   }
 
   @override
   Widget build(BuildContext context) {
     final state = snapshot;
     final active = state?.routeActive ?? false;
-    final status = error ?? state?.message ?? 'Checking devices…';
     return Scaffold(
-      body: Center(
+      body: Align(
+        alignment: Alignment.topCenter,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+            padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
@@ -246,71 +242,81 @@ class _HfpHomeState extends State<HfpHome> {
                     letterSpacing: -0.8,
                   ),
                 ),
-                const SizedBox(height: 8),
-                if (state?.appVersion.isNotEmpty == true)
-                  Text(
-                    'v${state!.appVersion} · ${state.packaged ? 'Installed app' : 'Portable / development'}',
-                    style: const TextStyle(color: muted, fontSize: 11),
-                  ),
-                const SizedBox(height: 8),
-                const Text(
-                  'iPhone media and calls on your PC',
-                  style: TextStyle(color: muted, fontSize: 13),
-                ),
-                const SizedBox(height: 16),
-                ConnectionStatusLine(
-                  title: 'Bluetooth link',
-                  state: state?.phoneId == null
-                      ? 'idle'
+                const SizedBox(height: 18),
+                StatusRow(
+                  title: 'Bluetooth',
+                  value: state?.phoneId == null
+                      ? 'Not connected'
                       : state!.phoneConnected
-                      ? 'connected'
-                      : 'disconnected',
-                  message: state?.phoneId == null
-                      ? 'Select a paired iPhone below.'
-                      : state!.phoneConnected
-                      ? 'Windows reports the selected iPhone is connected.'
-                      : 'Paired, but Windows does not currently report a Bluetooth connection.',
+                      ? 'Connected'
+                      : 'Disconnected',
                 ),
+                StatusRow(
+                  title: 'Media',
+                  value: connectionLabel(state?.mediaState),
+                ),
+                StatusRow(
+                  title: 'Calls',
+                  value: connectionLabel(state?.callsState),
+                ),
+                StatusRow(title: 'Microphone', value: microphoneLabel(state)),
                 const SizedBox(height: 16),
                 SelectRow(
-                  title: 'Bluetooth',
+                  title: 'Phone',
                   value: state == null
-                      ? 'Checking…'
+                      ? 'Checking'
                       : label(state.phones, state.phoneId, 'Select iPhone'),
                   valueColor: state?.phoneConnected == true ? green : muted,
                   choices: [
                     if (state?.phoneId != null)
-                      const Choice('__stop__', 'Stop routing'),
-                    ...?state?.phones.map((d) => Choice(d.id, d.name)),
-                    const Choice('__pair__', 'Pair iPhone in Windows…'),
+                      const Choice('__stop__', 'Stop'),
+                    ...?state?.phones.map(
+                      (device) => Choice(device.id, device.name),
+                    ),
+                    const Choice('__pair__', 'Pair iPhone'),
                   ],
                   onSelected: (id) => change('selectPhone', id),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 SelectRow(
-                  title: 'Input',
+                  title: 'Microphone',
                   value: state == null
-                      ? 'Checking…'
+                      ? 'Checking'
                       : label(state.inputs, state.inputId, 'Select microphone'),
-                  choices: [...?state?.inputs.map((d) => Choice(d.id, d.name))],
+                  choices: [
+                    ...?state?.inputs.map(
+                      (device) => Choice(device.id, device.name),
+                    ),
+                  ],
                   onSelected: (id) => change('selectInput', id),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 SelectRow(
-                  title: 'Output',
+                  title: 'Headphones',
                   value: state == null
-                      ? 'Checking…'
+                      ? 'Checking'
                       : label(
                           state.outputs,
                           state.outputId,
-                          'Select headphones or speakers',
+                          'Select headphones',
                         ),
                   choices: [
-                    ...?state?.outputs.map((d) => Choice(d.id, d.name)),
+                    ...?state?.outputs.map(
+                      (device) => Choice(device.id, device.name),
+                    ),
                   ],
                   onSelected: (id) => change('selectOutput', id),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 10),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: const Text('Voice recording'),
+                  value: state?.voiceMode ?? false,
+                  onChanged: state?.phoneId == null
+                      ? null
+                      : (enabled) => change('setVoiceMode', enabled),
+                ),
                 OutlinedButton(
                   onPressed:
                       state?.inputId == null ||
@@ -320,74 +326,30 @@ class _HfpHomeState extends State<HfpHome> {
                       ? null
                       : () => change('testAudio', null),
                   child: Text(
-                    state?.testActive == true
-                        ? 'Testing microphone...'
-                        : 'Test mic through headphones (5 seconds)',
+                    state?.testActive == true ? 'Speak now' : 'Test microphone',
                   ),
                 ),
                 if (state?.testMessage.isNotEmpty == true) ...[
                   const SizedBox(height: 6),
                   Text(
-                    state!.testMessage,
-                    style: const TextStyle(
-                      color: muted,
-                      fontSize: 11,
-                      height: 1.4,
-                    ),
+                    state!.testActive
+                        ? 'Speak now'
+                        : state.testPeak > 0.001
+                        ? 'Signal detected'
+                        : 'No signal',
+                    style: const TextStyle(color: muted, fontSize: 11),
                   ),
                   const SizedBox(height: 6),
                   LinearProgressIndicator(
                     value: state.testPeak.clamp(0.0, 1.0),
                     color: green,
                     backgroundColor: border,
-                    semanticsLabel: 'Maximum microphone level',
+                    semanticsLabel: 'Microphone level',
                   ),
                 ],
-                const SizedBox(height: 16),
-                ConnectionStatusLine(
-                  title: 'Media',
-                  state: state?.mediaState ?? 'idle',
-                  message: state?.mediaMessage ?? 'Checking...',
-                ),
                 const SizedBox(height: 10),
-                ConnectionStatusLine(
-                  title: 'Calls in this app',
-                  state: state?.callsState ?? 'idle',
-                  message: state?.callsMessage ?? 'Checking...',
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 7,
-                      height: 7,
-                      margin: const EdgeInsets.only(top: 5, right: 9),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: active ? green : muted,
-                      ),
-                    ),
-                    Expanded(
-                      child: Text(
-                        'Call audio route: $status',
-                        style: TextStyle(
-                          color: active ? green : muted,
-                          fontSize: 12,
-                          height: 1.4,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Input and Output select call devices. Media plays through Windows audio output; select your headphones in Sound settings. The microphone is used during calls, not for every iPhone app.',
-                  style: TextStyle(color: muted, fontSize: 11, height: 1.4),
-                ),
-                const SizedBox(height: 8),
                 Wrap(
-                  spacing: 8,
+                  spacing: 4,
                   children: [
                     TextButton(
                       onPressed: state?.phoneId == null
@@ -396,16 +358,33 @@ class _HfpHomeState extends State<HfpHome> {
                       child: const Text('Reconnect'),
                     ),
                     TextButton(
-                      onPressed: () => change('openSoundSettings', null),
-                      child: const Text('Sound settings'),
+                      onPressed:
+                          state?.phoneId == null || state?.voiceMode == true
+                          ? null
+                          : () => change('requestPcAudio', null),
+                      child: const Text('Use PC for call'),
                     ),
-                    TextButton(
-                      onPressed: () => change('openCallPermissions', null),
-                      child: const Text('Call permissions'),
-                    ),
-                    TextButton(
-                      onPressed: () => change('openPhoneLink', null),
-                      child: const Text('Phone Link'),
+                    PopupMenuButton<String>(
+                      tooltip: 'More settings',
+                      onSelected: (value) => change(value, null),
+                      itemBuilder: (context) => const [
+                        PopupMenuItem(
+                          value: 'openSoundSettings',
+                          child: Text('Sound'),
+                        ),
+                        PopupMenuItem(
+                          value: 'openCallPermissions',
+                          child: Text('Permissions'),
+                        ),
+                        PopupMenuItem(
+                          value: 'openPhoneLink',
+                          child: Text('Phone Link'),
+                        ),
+                      ],
+                      child: const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Text('Settings'),
+                      ),
                     ),
                   ],
                 ),
@@ -418,52 +397,32 @@ class _HfpHomeState extends State<HfpHome> {
   }
 }
 
-class ConnectionStatusLine extends StatelessWidget {
-  const ConnectionStatusLine({
-    required this.title,
-    required this.state,
-    required this.message,
-    super.key,
-  });
+class StatusRow extends StatelessWidget {
+  const StatusRow({required this.title, required this.value, super.key});
+
   final String title;
-  final String state;
-  final String message;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
-    final label = switch (state) {
-      'connected' => 'Connected',
-      'connecting' => 'In progress',
-      'waiting' => 'Waiting',
-      'blocked' => 'Access denied',
-      'unavailable' => 'Unavailable to this app',
-      'timeout' => 'Timed out',
-      'error' => 'Failed',
-      'disconnected' => 'Disconnected',
-      _ => 'Not started',
-    };
-    final color = state == 'connected'
+    final color = value == 'Connected' || value == 'Active'
         ? green
-        : ['blocked', 'error', 'timeout'].contains(state)
+        : value == 'Blocked' || value == 'Failed'
         ? const Color(0xFFFBBF24)
         : muted;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '$title · $label',
-          style: TextStyle(
-            color: color,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              style: const TextStyle(color: white, fontSize: 12),
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          message,
-          style: const TextStyle(color: muted, fontSize: 12, height: 1.4),
-        ),
-      ],
+          Text(value, style: TextStyle(color: color, fontSize: 12)),
+        ],
+      ),
     );
   }
 }
@@ -513,8 +472,8 @@ class SelectRow extends StatelessWidget {
         .toList(),
     child: Container(
       width: double.infinity,
-      height: 72,
-      padding: const EdgeInsets.symmetric(horizontal: 18),
+      height: 60,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
         color: card,
         border: Border.all(color: border),
@@ -523,7 +482,7 @@ class SelectRow extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: 92,
+            width: 112,
             child: Text(
               title,
               style: const TextStyle(color: white, fontSize: 14),

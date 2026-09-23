@@ -5,11 +5,14 @@
 #include <winrt/Windows.Devices.Bluetooth.h>
 #include <winrt/Windows.Devices.Enumeration.h>
 #include <winrt/Windows.Foundation.Collections.h>
+#include <winrt/Windows.Foundation.Metadata.h>
 #include <winrt/Windows.Media.Audio.h>
 
 #include <algorithm>
 #include <chrono>
 #include <cwctype>
+#include <memory>
+#include <vector>
 
 using namespace winrt;
 using namespace Windows::ApplicationModel::Calls;
@@ -63,6 +66,72 @@ DeviceInformation Match(const DeviceInformationCollection& devices,
   }
   return nullptr;
 }
+
+// Only transfer an existing, talking call on the selected transport. This never
+// dials, answers, unmutes, or changes calls belonging to another paired phone.
+std::wstring TransferActiveCall(const PhoneLineTransportDevice& transport,
+    const std::atomic<bool>& stop, const std::atomic<unsigned long>& revision,
+    unsigned long current) {
+  if (!Windows::Foundation::Metadata::ApiInformation::IsTypePresent(
+          L"Windows.ApplicationModel.Calls.PhoneCall"))
+    return L"Call audio transfer requires Windows build 20348 or later.";
+  auto store = Await(PhoneCallManager::RequestStoreAsync(), stop, revision, current);
+  if (!store) return L"Windows did not expose a call store to this app.";
+  struct Lines {
+    std::mutex mutex;
+    std::vector<guid> ids;
+    bool complete = false;
+  };
+  auto lines = std::make_shared<Lines>();
+  auto watcher = store.RequestLineWatcher();
+  auto added = watcher.LineAdded(auto_revoke, [lines](auto const&, auto const& args) {
+    std::lock_guard<std::mutex> lock(lines->mutex);
+    lines->ids.push_back(args.LineId());
+  });
+  auto complete = watcher.EnumerationCompleted(auto_revoke, [lines](auto const&, auto const&) {
+    std::lock_guard<std::mutex> lock(lines->mutex);
+    lines->complete = true;
+  });
+  watcher.Start();
+  try {
+    const auto deadline = std::chrono::steady_clock::now() + 10s;
+    for (;;) {
+      if (stop || revision != current) throw hresult_canceled();
+      { std::lock_guard<std::mutex> lock(lines->mutex); if (lines->complete) break; }
+      if (std::chrono::steady_clock::now() >= deadline)
+        throw hresult_error(HRESULT_FROM_WIN32(ERROR_TIMEOUT));
+      std::this_thread::sleep_for(50ms);
+    }
+    watcher.Stop();
+  } catch (...) { watcher.Stop(); throw; }
+  std::vector<guid> ids;
+  { std::lock_guard<std::mutex> lock(lines->mutex); ids = lines->ids; }
+  bool matched_line = false;
+  for (const auto& id : ids) {
+    auto line = Await(PhoneLine::FromIdAsync(id), stop, revision, current);
+    if (!line || line.TransportDeviceId() != transport.DeviceId()) continue;
+    matched_line = true;
+    auto result = Await(line.GetAllActivePhoneCallsAsync(), stop, revision, current);
+    if (result.OperationStatus() != PhoneLineOperationStatus::Succeeded)
+      return L"Windows could not enumerate active calls (status " +
+          std::to_wstring(static_cast<int>(result.OperationStatus())) + L").";
+    for (const auto& call : result.AllActivePhoneCalls()) {
+      if (stop || revision != current) throw hresult_canceled();
+      if (call.Status() != PhoneCallStatus::Talking) continue;
+      if (call.AudioDevice() == PhoneCallAudioDevice::LocalDevice)
+        return L"Windows reports the active call is already on this PC. Check audio stream progress.";
+      auto changed = Await(call.ChangeAudioDeviceAsync(PhoneCallAudioDevice::LocalDevice),
+                           stop, revision, current);
+      if (changed == PhoneCallOperationStatus::Succeeded)
+        return L"Windows accepted transfer of the active call to this PC. Confirm the other caller hears your microphone.";
+      return L"Windows rejected call audio transfer (status " +
+          std::to_wstring(static_cast<int>(changed)) + L").";
+    }
+  }
+  return matched_line
+      ? L"No talking call exposed for the selected iPhone. Voice-message recording is not an active phone call; this transfer API cannot route it."
+      : L"Windows exposed no phone line for the selected iPhone. Transport connection alone is insufficient for call audio transfer.";
+}
 }  // namespace
 
 PhoneTransport::PhoneTransport() : worker_([this] { Run(); }) {}
@@ -85,6 +154,7 @@ void PhoneTransport::Select(const std::wstring& address) {
       return;
     }
     address_ = address;
+    audio_requested_ = false;
     status_ = {};
     if (!address.empty()) {
       status_.media_message = L"Preparing the media receiver for this app.";
@@ -94,6 +164,20 @@ void PhoneTransport::Select(const std::wstring& address) {
       status_.media_since = status_.calls_since = std::chrono::steady_clock::now();
     }
     ++revision_;
+  }
+  wake_.notify_all();
+}
+
+void PhoneTransport::RequestPcAudio() {
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (stop_ || address_.empty()) return;
+    if (!status_.calls_connected) {
+      status_.calls_message = L"Connect call transport before requesting audio transfer.";
+      return;
+    }
+    audio_requested_ = true;
+    status_.calls_message = L"Requesting transfer of the active call to this PC...";
   }
   wake_.notify_all();
 }
@@ -138,14 +222,24 @@ void PhoneTransport::Run() {
       while (!stop_) {
         std::wstring address;
         unsigned long current;
+        bool request_audio = false;
         {
           std::unique_lock<std::mutex> lock(mutex_);
-          wake_.wait_for(lock, 500ms, [&] { return stop_ || revision_ != handled; });
+          wake_.wait_for(lock, 500ms, [&] { return stop_ || revision_ != handled || audio_requested_; });
           if (stop_) break;
           current = revision_;
           address = address_;
+          request_audio = audio_requested_;
+          audio_requested_ = false;
         }
         if (current == handled) {
+          if (request_audio && calls) {
+            std::wstring result;
+            try { result = TransferActiveCall(calls, stop_, revision_, current); }
+            catch (const hresult_error& e) { result = L"Call audio transfer: " + Failure(e); }
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (revision_ == current && !stop_) status_.calls_message = result;
+          }
           if (media) {
             try {
               const bool opened = media.State() == AudioPlaybackConnectionState::Opened;
@@ -254,9 +348,13 @@ void PhoneTransport::Run() {
                   false, "blocked");
             } else {
               publish(false, L"Registering this app for the phone's call transport.", false, "connecting");
-              if (!calls.IsRegistered()) { calls.RegisterApp(); registered_here = true; }
-              if (!calls.IsRegistered()) throw hresult_error(E_ACCESSDENIED,
-                  L"Windows did not register the app for call transport");
+              if (!calls.IsRegistered()) {
+                calls.RegisterApp();
+                registered_here = calls.IsRegistered();
+              }
+              // A successful RegisterApp can leave IsRegistered false with the
+              // experimental Windows BypassRegistration setting. Let ConnectAsync
+              // report its real result instead of synthesizing E_ACCESSDENIED.
               publish(false, L"Requesting call transport connection for this app (up to 20 seconds).", false, "connecting");
               const bool connected = Await(calls.ConnectAsync(), stop_, revision_, current);
               publish(false, connected

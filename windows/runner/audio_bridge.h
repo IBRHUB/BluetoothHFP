@@ -24,6 +24,8 @@ class AudioBridge {
              const std::wstring& pc_input,
              const std::wstring& phone_render);
   void Stop();
+  void StartMicrophone(const std::wstring& pc_input,
+                       const std::wstring& phone_render);
   void StartTest(const std::wstring& pc_input, const std::wstring& pc_output);
   bool active() const;
   double peak() const { return peak_.load(); }
@@ -38,6 +40,7 @@ class AudioBridge {
   void SetError(const std::wstring& value);
 
   std::atomic<bool> stop_{false};
+  std::atomic<bool> microphone_only_{false};
   std::atomic<bool> incoming_ready_{false};
   std::atomic<bool> outgoing_ready_{false};
   std::atomic<float> peak_{0};
