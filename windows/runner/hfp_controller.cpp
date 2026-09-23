@@ -1,6 +1,7 @@
 #include "hfp_controller.h"
 
 #include <windows.h>
+#include <appmodel.h>
 #include <bluetoothapis.h>
 #include <propkeydef.h>
 #include <functiondiscoverykeys_devpkey.h>
@@ -19,6 +20,19 @@
 using Microsoft::WRL::ComPtr;
 
 namespace {
+
+std::wstring LoadDevice(const wchar_t* name) {
+  wchar_t value[2048]{};
+  DWORD bytes = sizeof(value);
+  if (RegGetValueW(HKEY_CURRENT_USER, L"Software\\BluetoothHFP", name,
+                   RRF_RT_REG_SZ, nullptr, value, &bytes) != ERROR_SUCCESS) return L"";
+  return value;
+}
+
+void SaveDevice(const wchar_t* name, const std::wstring& id) {
+  RegSetKeyValueW(HKEY_CURRENT_USER, L"Software\\BluetoothHFP", name, REG_SZ,
+                 id.c_str(), static_cast<DWORD>((id.size() + 1) * sizeof(wchar_t)));
+}
 
 struct Device {
   std::wstring id;
@@ -186,6 +200,9 @@ flutter::EncodableValue NullableId(const std::wstring& value) {
 
 }  // namespace
 
+HfpController::HfpController()
+    : input_id_(LoadDevice(L"Input")), output_id_(LoadDevice(L"Output")) {}
+
 flutter::EncodableValue HfpController::Snapshot() {
   const auto phones = Phones();
   const auto captures = Endpoints(eCapture);
@@ -221,6 +238,8 @@ flutter::EncodableValue HfpController::Snapshot() {
           phone_render;
   }
   const auto now = std::chrono::steady_clock::now();
+  const bool testing = now < test_until_;
+  if (testing) key.clear();
   if (key != route_key_ || (!key.empty() && !bridge_.active() &&
                            !bridge_.error().empty() && now >= retry_at_)) {
     bridge_.Stop();
@@ -239,13 +258,31 @@ flutter::EncodableValue HfpController::Snapshot() {
   else if (input_id_.empty() || output_id_.empty())
     message = L"Select a PC microphone and output device.";
   else if (phone_capture.empty() || phone_render.empty())
-    message = L"Call audio route unavailable. Connect calls, then start a call and select this PC on iPhone.";
+    message = L"This app is not routing call audio. Phone Link may be handling calls; no usable phone audio endpoints are currently exposed to this app.";
   else if (!bridge_.error().empty()) message = bridge_.error();
   else message = L"Opening call audio…";
 
   // Exclude the selected phone endpoints from PC input/output choices.
   const auto transport = transport_.Status();
+  UINT32 package_length = 0;
+  const bool packaged = GetCurrentPackageFullName(&package_length, nullptr) == ERROR_INSUFFICIENT_BUFFER;
+  std::wstring test_message = L"Test your microphone through the selected headphones for 5 seconds.";
+  if (!test_.error().empty()) test_message = test_.error();
+  else if (testing) test_message = L"Speak now: your microphone plays through the selected output (5 seconds).";
+  else if (test_until_ != std::chrono::steady_clock::time_point{})
+    test_message = test_.peak() > 0.001
+        ? L"Test finished: microphone signal received. Did you hear yourself in the headphones?"
+        : L"Test finished: no microphone signal detected. Check Input, mute, and Windows microphone permission.";
   flutter::EncodableMap result = {
+      {flutter::EncodableValue("appVersion"), flutter::EncodableValue(FLUTTER_VERSION)},
+      {flutter::EncodableValue("packaged"), flutter::EncodableValue(packaged)},
+      {flutter::EncodableValue("mediaState"), flutter::EncodableValue(transport.media_state)},
+      {flutter::EncodableValue("callsState"), flutter::EncodableValue(bridge_.active() ? "connected" : transport.calls_state)},
+      {flutter::EncodableValue("testActive"), flutter::EncodableValue(testing)},
+      {flutter::EncodableValue("testRouteActive"), flutter::EncodableValue(test_.active())},
+      {flutter::EncodableValue("testPeak"), flutter::EncodableValue(
+          test_until_ == std::chrono::steady_clock::time_point{} ? 0.0 : test_.peak())},
+      {flutter::EncodableValue("testMessage"), flutter::EncodableValue(Utf8FromUtf16(test_message.c_str()))},
       {flutter::EncodableValue("mediaActive"), flutter::EncodableValue(transport.media_open)},
       {flutter::EncodableValue("mediaMessage"), flutter::EncodableValue(Utf8FromUtf16(transport.media_message.c_str()))},
       {flutter::EncodableValue("callsMessage"), flutter::EncodableValue(Utf8FromUtf16(transport.calls_message.c_str()))},
@@ -273,6 +310,8 @@ std::wstring HfpController::SelectPhone(const std::string* id) {
   // BluetoothSetServiceState installs or removes a profile driver; it does not
   // connect a call. Use the phone transport API and keep the profile installed.
   phone_id_ = target;
+  test_.Stop();
+  test_until_ = {};
   transport_.Select(target);
   bridge_.Stop();
   route_key_.clear();
@@ -285,11 +324,24 @@ void HfpController::Reconnect() {
   transport_.Select(phone_id_);
 }
 
+std::wstring HfpController::TestAudio() {
+  if (bridge_.active()) return L"Stop call routing before testing local audio.";
+  if (input_id_.empty() || output_id_.empty()) return L"Select a microphone and headphones first.";
+  bridge_.Stop();
+  route_key_.clear();
+  test_until_ = std::chrono::steady_clock::now() + std::chrono::seconds(6);
+  test_.StartTest(input_id_, output_id_);
+  return L"";
+}
+
 std::wstring HfpController::SelectInput(const std::string& id) {
   const std::wstring candidate = FromUtf8(id);
   if (!Contains(PcEndpoints(Endpoints(eCapture)), candidate))
     return L"Microphone is unavailable.";
   input_id_ = candidate;
+  SaveDevice(L"Input", candidate);
+  test_.Stop();
+  test_until_ = {};
   return L"";
 }
 
@@ -298,5 +350,8 @@ std::wstring HfpController::SelectOutput(const std::string& id) {
   if (!Contains(PcEndpoints(Endpoints(eRender)), candidate))
     return L"Output is unavailable.";
   output_id_ = candidate;
+  SaveDevice(L"Output", candidate);
+  test_.Stop();
+  test_until_ = {};
   return L"";
 }

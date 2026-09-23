@@ -12,6 +12,8 @@ A Flutter desktop interface for receiving iPhone media over Bluetooth and routin
 6. Select the PC microphone and call output, then start/transfer a call on iPhone and choose the PC. Call routing turns green only after both WASAPI directions open. That verifies stream initialization, not that the remote participant hears audio. Test both directions with a real call.
 7. **Reconnect** retries media and call connection. **Stop routing** closes this app's media connection and audio streams and removes only call registrations created by this instance. It does not unpair the phone or remove Windows drivers.
 
+Use **Test mic through headphones (5 seconds)** to test the selected microphone and output without a phone call. Speak and listen for your own voice; the meter retains the maximum captured level. This test does not record to disk or send audio to the phone. A microphone signal confirms local capture, not iPhone call support. The test is disabled while the call bridge is active. Successful Input/Output choices are remembered per Windows user (`HKCU\Software\BluetoothHFP`) instead of reverting to virtual communications defaults on every launch.
+
 The script also builds `build/BluetoothHFP.msix`. This distribution artifact is unsigned; sign it before distributing it. For testing on this machine use the registered app, not a double-click on the unsigned MSIX. Do not move/delete `build/package` while its loose development package is registered. Unregister it with `Get-AppxPackage BluetoothHFP.Desktop | Remove-AppxPackage` when no longer needed.
 
 ## How it works
@@ -34,6 +36,16 @@ Relevant Windows documentation: [Phone Link iPhone setup](https://support.micros
 ## Verification
 
 Run `flutter analyze`, `flutter test`, and `flutter build windows`. A physical iPhone call is required to verify the Bluetooth HFP and SCO path.
+
+The window owns its controller only between `OnCreate` and `OnDestroy`. This matters because `Win32Window::Create` invokes `Destroy` before the first window exists; stopping a controller constructed as a direct window member at that point previously killed the Bluetooth worker before the user could connect.
+
+Run the opt-in Windows integration test with one paired test phone:
+
+```powershell
+flutter test integration_test/device_flow_test.dart -d windows --dart-define=HFP_HARDWARE_TEST=true --dart-define=HFP_TEST_INPUT=HyperX --dart-define=HFP_TEST_OUTPUT=FiiO
+```
+
+Replace the device-name fragments for your hardware. The test launches the real window, selects the physical devices, opens a five-second local microphone-to-output stream, checks that it closes, and verifies that Bluetooth progresses beyond the initial connecting state. It does not dial or answer a call. On the development machine the local test captured a nonzero HyperX signal and opened the FiiO render stream; media also connected. Call transport access remained denied by Windows. Hearing the output and completing a phone call still require a human check.
 
 `powershell -File windows/package/diagnose-windows.ps1` checks the registered app's package identity and current devices. Add `-PhoneAddress <12-hex-digit-address>` to attempt a connection for 45 seconds without dialing or answering. The local report is `build/connection-diagnostics.txt`; media success and denied call access are recorded separately. The hardware smoke test on the development machine opened media successfully, but Windows returned denied call access. This is not an end-to-end call-audio pass.
 

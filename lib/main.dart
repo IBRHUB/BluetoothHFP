@@ -54,6 +54,13 @@ class Snapshot {
     this.mediaActive = false,
     this.mediaMessage = 'Select an iPhone to receive media.',
     this.callsMessage = 'Select an iPhone to connect calls.',
+    this.testActive = false,
+    this.testPeak = 0,
+    this.testMessage = '',
+    this.mediaState = 'idle',
+    this.callsState = 'idle',
+    this.appVersion = '',
+    this.packaged = false,
   });
 
   final List<Device> phones;
@@ -68,6 +75,13 @@ class Snapshot {
   final bool mediaActive;
   final String mediaMessage;
   final String callsMessage;
+  final bool testActive;
+  final double testPeak;
+  final String testMessage;
+  final String mediaState;
+  final String callsState;
+  final String appVersion;
+  final bool packaged;
 
   factory Snapshot.fromMap(Map<Object?, Object?> data) {
     List<Device> list(String key) => (data[key] as List<Object?>? ?? [])
@@ -90,6 +104,13 @@ class Snapshot {
       callsMessage:
           data['callsMessage'] as String? ??
           'Select an iPhone to connect calls.',
+      testActive: data['testActive'] as bool? ?? false,
+      testPeak: (data['testPeak'] as num?)?.toDouble() ?? 0,
+      testMessage: data['testMessage'] as String? ?? '',
+      mediaState: data['mediaState'] as String? ?? 'idle',
+      callsState: data['callsState'] as String? ?? 'idle',
+      appVersion: data['appVersion'] as String? ?? '',
+      packaged: data['packaged'] as bool? ?? false,
     );
   }
 }
@@ -112,7 +133,7 @@ class _HfpHomeState extends State<HfpHome> {
   void initState() {
     super.initState();
     refresh();
-    timer = Timer.periodic(const Duration(seconds: 3), (_) => refresh());
+    timer = Timer.periodic(const Duration(seconds: 1), (_) => refresh());
   }
 
   @override
@@ -125,13 +146,20 @@ class _HfpHomeState extends State<HfpHome> {
     if (busy) return;
     busy = true;
     try {
-      final data = await channel.invokeMapMethod<Object?, Object?>('snapshot');
+      final data = await channel
+          .invokeMapMethod<Object?, Object?>('snapshot')
+          .timeout(const Duration(seconds: 8));
       if (mounted && data != null) {
         setState(() {
           snapshot = Snapshot.fromMap(data);
           error = null;
         });
       }
+    } on TimeoutException {
+      if (mounted)
+        setState(
+          () => error = 'Windows is not responding. Device status could not be refreshed.',
+        );
     } on PlatformException catch (exception) {
       if (mounted) setState(() => error = exception.message ?? exception.code);
     } on MissingPluginException {
@@ -148,17 +176,35 @@ class _HfpHomeState extends State<HfpHome> {
     busy = true;
     try {
       if (method == 'selectPhone' && id == '__pair__') {
-        await channel.invokeMethod<void>('openBluetoothSettings');
+        await channel
+            .invokeMethod<void>('openBluetoothSettings')
+            .timeout(const Duration(seconds: 8));
       } else {
-        await channel.invokeMethod<void>(method, id == '__stop__' ? null : id);
+        await channel
+            .invokeMethod<void>(method, id == '__stop__' ? null : id)
+            .timeout(const Duration(seconds: 8));
       }
-      final data = await channel.invokeMapMethod<Object?, Object?>('snapshot');
+      final data = await channel
+          .invokeMapMethod<Object?, Object?>('snapshot')
+          .timeout(const Duration(seconds: 8));
       if (mounted && data != null) {
         setState(() {
           snapshot = Snapshot.fromMap(data);
           error = null;
         });
       }
+    } on TimeoutException {
+      if (mounted)
+        setState(
+          () => error =
+              'Windows did not finish the request. Refreshing status...',
+        );
+    } on MissingPluginException {
+      if (mounted)
+        setState(
+          () => error =
+              'Windows audio bridge is unavailable. Restart the installed app.',
+        );
     } on PlatformException catch (exception) {
       if (mounted) setState(() => error = exception.message ?? exception.code);
     } finally {
@@ -198,17 +244,37 @@ class _HfpHomeState extends State<HfpHome> {
                   ),
                 ),
                 const SizedBox(height: 8),
+                if (state?.appVersion.isNotEmpty == true)
+                  Text(
+                    'v${state!.appVersion} · ${state.packaged ? 'Installed app' : 'Portable / development'}',
+                    style: const TextStyle(color: muted, fontSize: 11),
+                  ),
+                const SizedBox(height: 8),
                 const Text(
                   'iPhone media and calls on your PC',
                   style: TextStyle(color: muted, fontSize: 13),
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 16),
+                ConnectionStatusLine(
+                  title: 'Bluetooth link',
+                  state: state?.phoneId == null
+                      ? 'idle'
+                      : state!.phoneConnected
+                      ? 'connected'
+                      : 'disconnected',
+                  message: state?.phoneId == null
+                      ? 'Select a paired iPhone below.'
+                      : state!.phoneConnected
+                      ? 'Windows reports the selected iPhone is connected.'
+                      : 'Paired, but Windows does not currently report a Bluetooth connection.',
+                ),
+                const SizedBox(height: 16),
                 SelectRow(
                   title: 'Bluetooth',
                   value: state == null
                       ? 'Checking…'
                       : label(state.phones, state.phoneId, 'Select iPhone'),
-                  valueColor: active ? green : muted,
+                  valueColor: state?.phoneConnected == true ? green : muted,
                   choices: [
                     if (state?.phoneId != null)
                       const Choice('__stop__', 'Stop routing'),
@@ -242,22 +308,49 @@ class _HfpHomeState extends State<HfpHome> {
                   onSelected: (id) => change('selectOutput', id),
                 ),
                 const SizedBox(height: 20),
-                Text(
-                  'Media: ${state?.mediaMessage ?? 'Checking...'}',
-                  style: TextStyle(
-                    color: state?.mediaActive == true ? green : muted,
-                    fontSize: 12,
-                    height: 1.4,
+                OutlinedButton(
+                  onPressed:
+                      state?.inputId == null ||
+                          state?.outputId == null ||
+                          state?.testActive == true ||
+                          active
+                      ? null
+                      : () => change('testAudio', null),
+                  child: Text(
+                    state?.testActive == true
+                        ? 'Testing microphone...'
+                        : 'Test mic through headphones (5 seconds)',
                   ),
                 ),
-                const SizedBox(height: 10),
-                Text(
-                  'Calls: ${state?.callsMessage ?? 'Checking...'}',
-                  style: const TextStyle(
-                    color: muted,
-                    fontSize: 12,
-                    height: 1.4,
+                if (state?.testMessage.isNotEmpty == true) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    state!.testMessage,
+                    style: const TextStyle(
+                      color: muted,
+                      fontSize: 11,
+                      height: 1.4,
+                    ),
                   ),
+                  const SizedBox(height: 6),
+                  LinearProgressIndicator(
+                    value: state.testPeak.clamp(0.0, 1.0),
+                    color: green,
+                    backgroundColor: border,
+                    semanticsLabel: 'Maximum microphone level',
+                  ),
+                ],
+                const SizedBox(height: 16),
+                ConnectionStatusLine(
+                  title: 'Media',
+                  state: state?.mediaState ?? 'idle',
+                  message: state?.mediaMessage ?? 'Checking...',
+                ),
+                const SizedBox(height: 10),
+                ConnectionStatusLine(
+                  title: 'Calls in this app',
+                  state: state?.callsState ?? 'idle',
+                  message: state?.callsMessage ?? 'Checking...',
                 ),
                 const SizedBox(height: 10),
                 Row(
@@ -274,7 +367,7 @@ class _HfpHomeState extends State<HfpHome> {
                     ),
                     Expanded(
                       child: Text(
-                        status,
+                        'Call audio route: $status',
                         style: TextStyle(
                           color: active ? green : muted,
                           fontSize: 12,
@@ -318,6 +411,56 @@ class _HfpHomeState extends State<HfpHome> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class ConnectionStatusLine extends StatelessWidget {
+  const ConnectionStatusLine({
+    required this.title,
+    required this.state,
+    required this.message,
+    super.key,
+  });
+  final String title;
+  final String state;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = switch (state) {
+      'connected' => 'Connected',
+      'connecting' => 'In progress',
+      'waiting' => 'Waiting',
+      'blocked' => 'Access denied',
+      'unavailable' => 'Unavailable to this app',
+      'timeout' => 'Timed out',
+      'error' => 'Failed',
+      'disconnected' => 'Disconnected',
+      _ => 'Not started',
+    };
+    final color = state == 'connected'
+        ? green
+        : ['blocked', 'error', 'timeout'].contains(state)
+        ? const Color(0xFFFBBF24)
+        : muted;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '$title · $label',
+          style: TextStyle(
+            color: color,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          message,
+          style: const TextStyle(color: muted, fontSize: 12, height: 1.4),
+        ),
+      ],
     );
   }
 }

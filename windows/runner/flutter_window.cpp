@@ -69,7 +69,9 @@ bool FlutterWindow::OnCreate() {
         const auto* arguments = call.arguments();
         const auto* id = arguments ? std::get_if<std::string>(arguments) : nullptr;
         std::wstring error;
-        if (call.method_name() == "selectPhone") {
+        if (call.method_name() == "testAudio") {
+          error = hfp_controller_->TestAudio();
+        } else if (call.method_name() == "selectPhone") {
           error = hfp_controller_->SelectPhone(id);
         } else if (call.method_name() == "selectInput" && id) {
           error = hfp_controller_->SelectInput(*id);

@@ -6,10 +6,15 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <chrono>
 
 struct TransportStatus {
   bool media_open = false;
   bool calls_connected = false;
+  std::string media_state = "idle";
+  std::string calls_state = "idle";
+  std::chrono::steady_clock::time_point media_since{};
+  std::chrono::steady_clock::time_point calls_since{};
   std::wstring media_message = L"Select an iPhone to receive media.";
   std::wstring calls_message = L"Select an iPhone to connect calls.";
 };

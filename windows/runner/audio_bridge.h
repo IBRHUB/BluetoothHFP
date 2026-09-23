@@ -20,17 +20,20 @@ class AudioBridge {
              const std::wstring& pc_input,
              const std::wstring& phone_render);
   void Stop();
+  void StartTest(const std::wstring& pc_input, const std::wstring& pc_output);
   bool active() const;
+  double peak() const { return peak_.load(); }
   std::wstring error() const;
 
  private:
   void Run(const std::wstring& capture_id, const std::wstring& render_id,
-           std::atomic<bool>& ready);
+           std::atomic<bool>& ready, bool test = false);
   void SetError(const std::wstring& value);
 
   std::atomic<bool> stop_{false};
   std::atomic<bool> incoming_ready_{false};
   std::atomic<bool> outgoing_ready_{false};
+  std::atomic<float> peak_{0};
   std::thread incoming_;
   std::thread outgoing_;
   mutable std::mutex error_mutex_;

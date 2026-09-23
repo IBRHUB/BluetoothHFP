@@ -147,6 +147,18 @@ void AudioBridge::Stop() {
   outgoing_ready_ = false;
 }
 
+void AudioBridge::StartTest(const std::wstring& pc_input,
+                            const std::wstring& pc_output) {
+  Stop();
+  SetError(L"");
+  peak_ = 0;
+  stop_ = false;
+  outgoing_ready_ = true;
+  incoming_ = std::thread([this, pc_input, pc_output] {
+    Run(pc_input, pc_output, incoming_ready_, true);
+  });
+}
+
 bool AudioBridge::active() const { return incoming_ready_ && outgoing_ready_; }
 
 std::wstring AudioBridge::error() const {
@@ -161,7 +173,7 @@ void AudioBridge::SetError(const std::wstring& value) {
 
 void AudioBridge::Run(const std::wstring& capture_id,
                       const std::wstring& render_id,
-                      std::atomic<bool>& ready) {
+                      std::atomic<bool>& ready, bool test) {
   const HRESULT com = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
   if (FAILED(com)) {
     SetError(L"Cannot initialize Windows audio.");
@@ -182,7 +194,9 @@ void AudioBridge::Run(const std::wstring& capture_id,
     if (SUCCEEDED(hr)) hr = render.client->Start();
     if (SUCCEEDED(hr)) hr = capture.client->Start();
     if (FAILED(hr)) {
-      SetError(L"Cannot open a call audio endpoint (" + HResultMessage(hr) + L").");
+      SetError(std::wstring(test ? L"Cannot open the selected microphone/output ("
+                                : L"Cannot open a call audio endpoint (") +
+               HResultMessage(hr) + L").");
       stop_ = true;
     } else {
       ready = true;
@@ -190,7 +204,9 @@ void AudioBridge::Run(const std::wstring& capture_id,
       double position = 0.0;
       const double step = static_cast<double>(capture.format.rate) /
                           static_cast<double>(render.format.rate);
+      const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
       while (!stop_) {
+        if (test && std::chrono::steady_clock::now() >= deadline) break;
         UINT32 pending = 0;
         hr = capture_service->GetNextPacketSize(&pending);
         if (FAILED(hr)) break;
@@ -209,6 +225,8 @@ void AudioBridge::Run(const std::wstring& capture_id,
                                capture.format);
               mono /= capture.format.channels;
             }
+            if (test && std::isfinite(mono) && std::abs(mono) > peak_)
+              peak_ = std::abs(mono);
             samples.push_back(mono);
           }
           hr = capture_service->ReleaseBuffer(frames);
