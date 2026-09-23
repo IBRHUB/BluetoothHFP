@@ -31,7 +31,8 @@ class FlutterWindow : public Win32Window {
   // The Flutter instance hosted by this window.
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
   std::unique_ptr<flutter::MethodChannel<>> channel_;
-  HfpController hfp_controller_;
+  // Construct only after Win32Window::Create's initial Destroy() callback.
+  std::unique_ptr<HfpController> hfp_controller_;
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_

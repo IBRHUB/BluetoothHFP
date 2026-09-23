@@ -51,6 +51,9 @@ class Snapshot {
     required this.outputId,
     required this.routeActive,
     required this.message,
+    this.mediaActive = false,
+    this.mediaMessage = 'Select an iPhone to receive media.',
+    this.callsMessage = 'Select an iPhone to connect calls.',
   });
 
   final List<Device> phones;
@@ -62,6 +65,9 @@ class Snapshot {
   final String? outputId;
   final bool routeActive;
   final String message;
+  final bool mediaActive;
+  final String mediaMessage;
+  final String callsMessage;
 
   factory Snapshot.fromMap(Map<Object?, Object?> data) {
     List<Device> list(String key) => (data[key] as List<Object?>? ?? [])
@@ -77,6 +83,13 @@ class Snapshot {
       outputId: data['outputId'] as String?,
       routeActive: data['routeActive'] as bool? ?? false,
       message: data['message'] as String? ?? '',
+      mediaActive: data['mediaActive'] as bool? ?? false,
+      mediaMessage:
+          data['mediaMessage'] as String? ??
+          'Select an iPhone to receive media.',
+      callsMessage:
+          data['callsMessage'] as String? ??
+          'Select an iPhone to connect calls.',
     );
   }
 }
@@ -134,10 +147,10 @@ class _HfpHomeState extends State<HfpHome> {
     if (busy) return;
     busy = true;
     try {
-      if (method == 'connectPhone' && id == '__pair__') {
+      if (method == 'selectPhone' && id == '__pair__') {
         await channel.invokeMethod<void>('openBluetoothSettings');
       } else {
-        await channel.invokeMethod<void>(method, id);
+        await channel.invokeMethod<void>(method, id == '__stop__' ? null : id);
       }
       final data = await channel.invokeMapMethod<Object?, Object?>('snapshot');
       if (mounted && data != null) {
@@ -169,8 +182,8 @@ class _HfpHomeState extends State<HfpHome> {
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -186,7 +199,7 @@ class _HfpHomeState extends State<HfpHome> {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'iPhone call audio on your PC',
+                  'iPhone media and calls on your PC',
                   style: TextStyle(color: muted, fontSize: 13),
                 ),
                 const SizedBox(height: 32),
@@ -195,14 +208,14 @@ class _HfpHomeState extends State<HfpHome> {
                   value: state == null
                       ? 'Checking…'
                       : label(state.phones, state.phoneId, 'Select iPhone'),
-                  valueColor: state?.phoneConnected == true ? green : muted,
+                  valueColor: active ? green : muted,
                   choices: [
                     if (state?.phoneId != null)
-                      const Choice(null, 'Stop routing'),
+                      const Choice('__stop__', 'Stop routing'),
                     ...?state?.phones.map((d) => Choice(d.id, d.name)),
                     const Choice('__pair__', 'Pair iPhone in Windows…'),
                   ],
-                  onSelected: (id) => change('connectPhone', id),
+                  onSelected: (id) => change('selectPhone', id),
                 ),
                 const SizedBox(height: 10),
                 SelectRow(
@@ -229,6 +242,24 @@ class _HfpHomeState extends State<HfpHome> {
                   onSelected: (id) => change('selectOutput', id),
                 ),
                 const SizedBox(height: 20),
+                Text(
+                  'Media: ${state?.mediaMessage ?? 'Checking...'}',
+                  style: TextStyle(
+                    color: state?.mediaActive == true ? green : muted,
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Calls: ${state?.callsMessage ?? 'Checking...'}',
+                  style: const TextStyle(
+                    color: muted,
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 10),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -250,6 +281,35 @@ class _HfpHomeState extends State<HfpHome> {
                           height: 1.4,
                         ),
                       ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Input and Output select call devices. Media plays through Windows audio output; select your headphones in Sound settings. The microphone is used during calls, not for every iPhone app.',
+                  style: TextStyle(color: muted, fontSize: 11, height: 1.4),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    TextButton(
+                      onPressed: state?.phoneId == null
+                          ? null
+                          : () => change('reconnect', null),
+                      child: const Text('Reconnect'),
+                    ),
+                    TextButton(
+                      onPressed: () => change('openSoundSettings', null),
+                      child: const Text('Sound settings'),
+                    ),
+                    TextButton(
+                      onPressed: () => change('openCallPermissions', null),
+                      child: const Text('Call permissions'),
+                    ),
+                    TextButton(
+                      onPressed: () => change('openPhoneLink', null),
+                      child: const Text('Phone Link'),
                     ),
                   ],
                 ),

@@ -4,16 +4,19 @@
 #include <flutter/encodable_value.h>
 
 #include <string>
+#include <chrono>
 
 #include "audio_bridge.h"
+#include "phone_transport.h"
 
 class HfpController {
  public:
   flutter::EncodableValue Snapshot();
-  std::wstring ConnectPhone(const std::string* id);
+  std::wstring SelectPhone(const std::string* id);
   std::wstring SelectInput(const std::string& id);
   std::wstring SelectOutput(const std::string& id);
-  void Stop() { bridge_.Stop(); }
+  void Reconnect();
+  void Stop() { transport_.Stop(); bridge_.Stop(); }
 
  private:
   std::wstring phone_id_;
@@ -21,6 +24,8 @@ class HfpController {
   std::wstring output_id_;
   std::wstring route_key_;
   AudioBridge bridge_;
+  PhoneTransport transport_;
+  std::chrono::steady_clock::time_point retry_at_{};
 };
 
 #endif

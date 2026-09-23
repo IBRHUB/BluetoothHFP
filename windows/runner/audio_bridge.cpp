@@ -183,6 +183,7 @@ void AudioBridge::Run(const std::wstring& capture_id,
     if (SUCCEEDED(hr)) hr = capture.client->Start();
     if (FAILED(hr)) {
       SetError(L"Cannot open a call audio endpoint (" + HResultMessage(hr) + L").");
+      stop_ = true;
     } else {
       ready = true;
       std::deque<float> samples;
@@ -230,7 +231,12 @@ void AudioBridge::Run(const std::wstring& capture_id,
           if (FAILED(hr)) break;
           for (UINT32 frame = 0; frame < free_frames; ++frame) {
             float sample = 0;
-            if (samples.size() >= 2) {
+            // Consume any remaining downsampling debt before interpolation.
+            while (position >= 1.0 && !samples.empty()) {
+              samples.pop_front();
+              position -= 1.0;
+            }
+            if (samples.size() >= 2 && position < 1.0) {
               sample = samples[0] +
                        (samples[1] - samples[0]) * static_cast<float>(position);
               position += step;
@@ -238,8 +244,6 @@ void AudioBridge::Run(const std::wstring& capture_id,
                 samples.pop_front();
                 position -= 1.0;
               }
-            } else {
-              position = 0.0;
             }
             BYTE* base = output + frame * render.format.frame_bytes;
             for (UINT channel = 0; channel < render.format.channels; ++channel)
@@ -251,8 +255,10 @@ void AudioBridge::Run(const std::wstring& capture_id,
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
       }
-      if (FAILED(hr) && !stop_)
+      if (FAILED(hr) && !stop_) {
         SetError(L"Call audio stopped (" + HResultMessage(hr) + L").");
+        stop_ = true;
+      }
       ready = false;
     }
   }

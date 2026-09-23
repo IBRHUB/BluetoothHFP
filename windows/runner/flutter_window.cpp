@@ -17,6 +17,7 @@ bool FlutterWindow::OnCreate() {
   if (!Win32Window::OnCreate()) {
     return false;
   }
+  hfp_controller_ = std::make_unique<HfpController>();
 
   const BOOL dark = TRUE;
   const COLORREF caption = RGB(0, 0, 0);
@@ -43,25 +44,37 @@ bool FlutterWindow::OnCreate() {
       [this](const flutter::MethodCall<>& call,
              std::unique_ptr<flutter::MethodResult<>> result) {
         if (call.method_name() == "snapshot") {
-          result->Success(hfp_controller_.Snapshot());
+          result->Success(hfp_controller_->Snapshot());
           return;
         }
-        if (call.method_name() == "openBluetoothSettings") {
+        if (call.method_name() == "reconnect") {
+          hfp_controller_->Reconnect();
+          result->Success();
+          return;
+        }
+        if (call.method_name() == "openBluetoothSettings" ||
+            call.method_name() == "openSoundSettings" ||
+            call.method_name() == "openCallPermissions" ||
+            call.method_name() == "openPhoneLink") {
+          const wchar_t* uri = L"ms-settings:bluetooth";
+          if (call.method_name() == "openSoundSettings") uri = L"ms-settings:sound";
+          if (call.method_name() == "openCallPermissions") uri = L"ms-settings:privacy-phonecalls";
+          if (call.method_name() == "openPhoneLink") uri = L"ms-phone:";
           const auto launched = ShellExecuteW(nullptr, L"open",
-              L"ms-settings:bluetooth", nullptr, nullptr, SW_SHOWNORMAL);
+              uri, nullptr, nullptr, SW_SHOWNORMAL);
           if (reinterpret_cast<INT_PTR>(launched) > 32) result->Success();
-          else result->Error("windows_settings", "Cannot open Bluetooth settings.");
+          else result->Error("windows_settings", "Cannot open the requested Windows app or settings.");
           return;
         }
         const auto* arguments = call.arguments();
         const auto* id = arguments ? std::get_if<std::string>(arguments) : nullptr;
         std::wstring error;
-        if (call.method_name() == "connectPhone") {
-          error = hfp_controller_.ConnectPhone(id);
+        if (call.method_name() == "selectPhone") {
+          error = hfp_controller_->SelectPhone(id);
         } else if (call.method_name() == "selectInput" && id) {
-          error = hfp_controller_.SelectInput(*id);
+          error = hfp_controller_->SelectInput(*id);
         } else if (call.method_name() == "selectOutput" && id) {
-          error = hfp_controller_.SelectOutput(*id);
+          error = hfp_controller_->SelectOutput(*id);
         } else {
           result->NotImplemented();
           return;
@@ -84,8 +97,11 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
-  hfp_controller_.Stop();
   channel_.reset();
+  if (hfp_controller_) {
+    hfp_controller_->Stop();
+    hfp_controller_.reset();
+  }
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }

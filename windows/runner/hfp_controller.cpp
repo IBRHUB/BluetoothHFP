@@ -117,7 +117,9 @@ std::vector<Device> PcEndpoints(const std::vector<Device>& endpoints) {
   for (const auto& endpoint : endpoints) {
     // Windows labels the phone-side endpoints "Hands-Free HF Audio". PC
     // Bluetooth headsets are usually "Hands-Free AG Audio" and stay eligible.
-    if (Lower(endpoint.name).find(L"hf audio") == std::wstring::npos)
+    const auto name = Lower(endpoint.name);
+    if (name.find(L"hf audio") == std::wstring::npos &&
+        name.find(L"a2dp snk") == std::wstring::npos)
       result.push_back(endpoint);
   }
   return result;
@@ -203,6 +205,7 @@ flutter::EncodableValue HfpController::Snapshot() {
   }
   if (!phone_id_.empty() && selected.id.empty()) {
     phone_id_.clear();
+    transport_.Select(L"");
   }
 
   std::wstring phone_capture;
@@ -217,10 +220,13 @@ flutter::EncodableValue HfpController::Snapshot() {
     key = phone_capture + L"|" + output_id_ + L"|" + input_id_ + L"|" +
           phone_render;
   }
-  if (key != route_key_) {
+  const auto now = std::chrono::steady_clock::now();
+  if (key != route_key_ || (!key.empty() && !bridge_.active() &&
+                           !bridge_.error().empty() && now >= retry_at_)) {
     bridge_.Stop();
     route_key_ = key;
     if (!key.empty()) bridge_.Start(phone_capture, output_id_, input_id_, phone_render);
+    retry_at_ = now + std::chrono::seconds(10);
   }
 
   std::wstring message;
@@ -233,12 +239,16 @@ flutter::EncodableValue HfpController::Snapshot() {
   else if (input_id_.empty() || output_id_.empty())
     message = L"Select a PC microphone and output device.";
   else if (phone_capture.empty() || phone_render.empty())
-    message = L"Connected. Transfer an active iPhone call to this PC to enable HFP audio.";
+    message = L"Call audio route unavailable. Connect calls, then start a call and select this PC on iPhone.";
   else if (!bridge_.error().empty()) message = bridge_.error();
   else message = L"Opening call audio…";
 
   // Exclude the selected phone endpoints from PC input/output choices.
+  const auto transport = transport_.Status();
   flutter::EncodableMap result = {
+      {flutter::EncodableValue("mediaActive"), flutter::EncodableValue(transport.media_open)},
+      {flutter::EncodableValue("mediaMessage"), flutter::EncodableValue(Utf8FromUtf16(transport.media_message.c_str()))},
+      {flutter::EncodableValue("callsMessage"), flutter::EncodableValue(Utf8FromUtf16(transport.calls_message.c_str()))},
       {flutter::EncodableValue("phones"), flutter::EncodableValue(ToList(phones))},
       {flutter::EncodableValue("inputs"),
        flutter::EncodableValue(ToList(pc_captures, phone_capture))},
@@ -256,18 +266,23 @@ flutter::EncodableValue HfpController::Snapshot() {
   return flutter::EncodableValue(result);
 }
 
-std::wstring HfpController::ConnectPhone(const std::string* id) {
+std::wstring HfpController::SelectPhone(const std::string* id) {
   const std::wstring target = id ? FromUtf8(*id) : L"";
   if (!target.empty() && !Contains(Phones(), target))
     return L"iPhone is no longer paired.";
-  if (phone_id_ == target) return L"";
   // BluetoothSetServiceState installs or removes a profile driver; it does not
-  // connect a call. Keep Windows' HFP driver installed and only control this
-  // app's audio route. The live Bluetooth and endpoint state is polled above.
+  // connect a call. Use the phone transport API and keep the profile installed.
   phone_id_ = target;
+  transport_.Select(target);
   bridge_.Stop();
   route_key_.clear();
   return L"";
+}
+
+void HfpController::Reconnect() {
+  bridge_.Stop();
+  route_key_.clear();
+  transport_.Select(phone_id_);
 }
 
 std::wstring HfpController::SelectInput(const std::string& id) {
