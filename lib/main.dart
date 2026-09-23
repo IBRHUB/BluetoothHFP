@@ -9,7 +9,12 @@ const black = Color(0xFF000000);
 const card = black;
 const white = Color(0xFFFFFFFF);
 const muted = Color(0xFF9A9FA9);
-const border = Color(0xFF2B2E36);
+const border = Color(0xFF333333);
+const surfaceRadius = BorderRadius.all(Radius.circular(10));
+const surfaceShape = RoundedRectangleBorder(
+  borderRadius: surfaceRadius,
+  side: BorderSide(color: border, width: 1.25),
+);
 const green = Color(0xFF22C55E);
 const blue = Color(0xFF3B82F6);
 const red = Color(0xFFEF4444);
@@ -453,10 +458,7 @@ class _HfpHomeState extends State<HfpHome> {
                 Material(
                   color: black,
                   clipBehavior: Clip.antiAlias,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: const BorderSide(color: border),
-                  ),
+                  shape: surfaceShape,
                   child: ExpansionTile(
                     key: const PageStorageKey('connection-status'),
                     initiallyExpanded: false,
@@ -567,10 +569,8 @@ class Panel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Material(
     color: card,
-    shape: RoundedRectangleBorder(
-      side: const BorderSide(color: border),
-      borderRadius: BorderRadius.circular(14),
-    ),
+    clipBehavior: Clip.antiAlias,
+    shape: surfaceShape,
     child: Padding(padding: const EdgeInsets.all(12), child: child),
   );
 }
@@ -687,99 +687,98 @@ class SelectRow extends StatelessWidget {
   final ValueChanged<String?> onSelected;
 
   @override
-  Widget build(BuildContext context) => PopupMenuButton<String?>(
-    borderRadius: BorderRadius.circular(12),
-    enabled: choices.isNotEmpty,
-    tooltip: title,
-    color: card,
-    surfaceTintColor: card,
-    elevation: 12,
-    position: PopupMenuPosition.under,
-    offset: const Offset(0, 4),
-    constraints: BoxConstraints(
-      minWidth: 220,
-      maxWidth: (MediaQuery.sizeOf(context).width - 48).clamp(220.0, 460.0),
-    ),
-    onSelected: onSelected,
-    itemBuilder: (_) => choices
-        .map(
-          (choice) => PopupMenuItem<String?>(
-            value: choice.id,
-            child: Row(
-              children: [
-                Icon(
-                  choice.id == '__pair__'
-                      ? Icons.add_rounded
-                      : choice.id == '__stop__'
-                      ? Icons.stop_circle_outlined
-                      : choice.id == selectedId
-                      ? Icons.check_rounded
-                      : icon,
-                  size: 18,
-                  color: choice.id == selectedId ? blue : muted,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    choice.label,
-                    style: TextStyle(
-                      color: choice.id == selectedId ? blue : white,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        )
-        .toList(),
-    child: Ink(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: card,
-        border: Border.all(color: border),
-        borderRadius: BorderRadius.circular(12),
+  Widget build(BuildContext context) => Material(
+    color: black,
+    shape: surfaceShape,
+    clipBehavior: Clip.antiAlias,
+    child: PopupMenuButton<String?>(
+      borderRadius: surfaceRadius,
+      enabled: choices.isNotEmpty,
+      tooltip: title,
+      color: card,
+      surfaceTintColor: card,
+      elevation: 12,
+      position: PopupMenuPosition.under,
+      offset: const Offset(0, 4),
+      constraints: BoxConstraints(
+        minWidth: 220,
+        maxWidth: (MediaQuery.sizeOf(context).width - 48).clamp(220.0, 460.0),
       ),
-      child: Row(
-        children: [
-          Icon(icon, color: muted, size: 22),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: muted,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
+      onSelected: onSelected,
+      itemBuilder: (_) => choices
+          .map(
+            (choice) => PopupMenuItem<String?>(
+              value: choice.id,
+              child: Row(
+                children: [
+                  Icon(
+                    choice.id == '__pair__'
+                        ? Icons.add_rounded
+                        : choice.id == '__stop__'
+                        ? Icons.stop_circle_outlined
+                        : choice.id == selectedId
+                        ? Icons.check_rounded
+                        : icon,
+                    size: 18,
+                    color: choice.id == selectedId ? blue : muted,
                   ),
-                ),
-                const SizedBox(height: 4),
-                Tooltip(
-                  message: value,
-                  child: Text(
-                    value,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: choices.isEmpty
-                          ? muted
-                          : valueColor == muted
-                          ? white
-                          : valueColor,
-                      fontSize: 13,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      choice.label,
+                      style: TextStyle(
+                        color: choice.id == selectedId ? blue : white,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 14),
-          const Icon(Icons.keyboard_arrow_down, color: muted, size: 18),
-        ],
+          )
+          .toList(),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Icon(icon, color: muted, size: 22),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: muted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Tooltip(
+                    message: value,
+                    child: Text(
+                      value,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: choices.isEmpty
+                            ? muted
+                            : valueColor == muted
+                            ? white
+                            : valueColor,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 14),
+            const Icon(Icons.keyboard_arrow_down, color: muted, size: 18),
+          ],
+        ),
       ),
     ),
   );
