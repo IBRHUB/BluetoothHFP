@@ -1,5 +1,9 @@
 # Bluetooth HFP
 
+The independent Windows C++ console experiment for direct AX201 USB ownership
+is in [native-poc](native-poc/README.md). It currently verifies USB descriptors
+and records the WinUSB driver-ownership blocker; HFP/SCO is not yet established.
+
 A Flutter desktop interface for receiving iPhone media over Bluetooth and routing available iPhone call audio through a Windows PC microphone and output device. Media connection, call transport, and the actual microphone/audio route have separate status messages.
 
 ## Run

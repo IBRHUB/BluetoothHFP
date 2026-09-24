@@ -1,0 +1,60 @@
+[APP] AX201 HFP-HF PoC; warm firmware required; no Windows audio yet
+[HFP] Service registered as HF uuid=0x111E RFCOMM=1 codec=CVSD
+[HCI] Controller ready (BTstack working)
+[BT] Local address: 38:68:93:87:62:06
+[BT] Discoverable as AX201 HFP Headset; open iPhone Bluetooth settings
+[BT] ACL connection peer=44:F2:1B:19:EC:0F status=0x00
+[BT] ACL connection peer=44:F2:1B:19:EC:0F status=0x00
+[BT] Headset Just Works pairing request
+[BT] Pairing complete status=0x00
+[HFP] RFCOMM connected
+[HFP] SLC established handle=0x0100
+[SCO] Request audio status=0x00
+[SCO] HCI synchronous complete status=0x0d handle=0x0000
+[SCO] HCI synchronous complete status=0x0d handle=0x0000
+[SCO] HCI synchronous complete status=0x0d handle=0x0000
+[SCO] HCI synchronous complete status=0x0d handle=0x0000
+[SCO] Audio link failed status=0x0e
+usb_sco_start
+[SCO] Audio link established handle=0x010a codec=1
+[SCO] TX queued=1 (CVSD PCM silence)
+[SCO] HCI synchronous complete status=0x00 handle=0x010a
+[SCO] RX packets=1 bytes=51
+[SCO] TX queued=1000 (CVSD PCM silence)
+[SCO] RX packets=1000 bytes=51
+[SCO] TX queued=2000 (CVSD PCM silence)
+[SCO] RX packets=2000 bytes=51
+[SCO] TX queued=3000 (CVSD PCM silence)
+[SCO] RX packets=3000 bytes=51
+[SCO] TX queued=4000 (CVSD PCM silence)
+[SCO] RX packets=4000 bytes=51
+[SCO] TX queued=5000 (CVSD PCM silence)
+[SCO] RX packets=5000 bytes=51
+[SCO] TX queued=6000 (CVSD PCM silence)
+[SCO] RX packets=6000 bytes=51
+[SCO] TX queued=7000 (CVSD PCM silence)
+[SCO] RX packets=7000 bytes=51
+[SCO] Audio link released
+usb_sco_stop
+usb_sco_start
+[SCO] Audio link established handle=0x010a codec=1
+[SCO] TX queued=1 (CVSD PCM silence)
+[SCO] HCI synchronous complete status=0x00 handle=0x010a
+[SCO] RX packets=1 bytes=51
+[SCO] TX queued=1000 (CVSD PCM silence)
+[SCO] RX packets=1000 bytes=51
+[SCO] TX queued=2000 (CVSD PCM silence)
+[SCO] RX packets=2000 bytes=51
+[SCO] TX queued=3000 (CVSD PCM silence)
+[SCO] RX packets=3000 bytes=51
+[SCO] Audio link released
+usb_sco_stop
+usb_sco_start
+[SCO] Audio link established handle=0x010a codec=1
+[SCO] TX queued=1 (CVSD PCM silence)
+[SCO] HCI synchronous complete status=0x00 handle=0x010a
+[SCO] RX packets=1 bytes=51
+[SCO] TX queued=1000 (CVSD PCM silence)
+[SCO] RX packets=1000 bytes=51
+[SCO] TX queued=2000 (CVSD PCM silence)
+[SCO] RX packets=2000 bytes=51

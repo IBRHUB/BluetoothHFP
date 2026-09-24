@@ -48,3 +48,5 @@ app.*.map.json
 .widget_preview/
 /scripts
 HFP-EXPERIMENT.md
+/.local/ax201-backup/
+/.local/hfp-run/
