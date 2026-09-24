@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([ValidateSet('Auto','CVSD')][string]$Codec = 'Auto')
+param([ValidateSet('Auto','CVSD','mSBC')][string]$Codec = 'Auto')
 $ErrorActionPreference = 'Stop'
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $exe = Join-Path $repo 'build\ax201-headset\Release\ax201_headset.exe'

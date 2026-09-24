@@ -1,0 +1,87 @@
+[APP] AX201 HFP-HF PoC; warm firmware required; WASAPI starts only on SCO
+[A2DP] Audio Sink registered uuid=0x110B; SBC stereo + AVRCP
+[HFP] Service registered as HF uuid=0x111E RFCOMM=1 codecs=CVSD,mSBC
+[HCI] Controller ready (BTstack working)
+[BT] Local address: 38:68:93:87:62:06
+[BT] Discoverable as AX201 HFP Headset; open iPhone Bluetooth settings
+[APP] connect 44:F2:1B:19:EC:0F request status=0x00
+[BT] ACL connection peer=44:F2:1B:19:EC:0F status=0x00
+[HFP] Remote SDP result: status=0 channel=8
+[BT] Authentication complete status=0x00
+[HFP] RFCOMM connected
+[HFP] SLC established handle=0x0100
+[SCO] Waiting for iPhone call audio route (or command: audio)
+[HFP] SLC released
+[AVRCP] Connection status=0x00
+[HFP] RFCOMM connected
+[A2DP] SBC configured rate=44100 channels=2
+[A2DP] Stream connection status=0x00
+[HFP] SLC established handle=0x0100
+[SCO] Waiting for iPhone call audio route (or command: audio)
+[A2DP] Stream started
+[AUDIO] Playback endpoint: Headphones (2- FiiO K11)
+[A2DP] WASAPI stereo playback started rate=44100
+[A2DP] Media packets=1
+[A2DP] decoded=220160 rendered=220974 queue=1819 under=0 over=0
+[A2DP] decoded=440320 rendered=441474 queue=1435 under=0 over=0
+[A2DP] Media packets=500
+[A2DP] decoded=661504 rendered=661974 queue=2464 under=424 over=0
+[A2DP] decoded=881536 rendered=882474 queue=2330 under=811 over=0
+[A2DP] Media packets=1000
+[A2DP] decoded=1101824 rendered=1102974 queue=2004 under=811 over=0
+[A2DP] decoded=1323008 rendered=1323474 queue=2587 under=811 over=0
+[A2DP] Media packets=1500
+[A2DP] decoded=1543168 rendered=1543974 queue=2157 under=811 over=0
+[A2DP] decoded=1764352 rendered=1764474 queue=2763 under=811 over=0
+[A2DP] decoded=1984512 rendered=1984974 queue=2353 under=811 over=0
+[A2DP] Media packets=2000
+[A2DP] decoded=2204672 rendered=2205474 queue=1951 under=811 over=0
+[A2DP] decoded=2424832 rendered=2425974 queue=1554 under=811 over=0
+[A2DP] Media packets=2500
+[A2DP] decoded=2644992 rendered=2646474 queue=1165 under=811 over=0
+[A2DP] decoded=2866176 rendered=2866974 queue=1805 under=811 over=0
+[A2DP] Playback stopped
+[A2DP] Stream suspended/released
+usb_sco_start
+[SCO] Audio link established handle=0x0101 codec=2
+[A2DP] Call has playback priority
+[SCO] TX queued=1 (WASAPI -> codec -> SCO)
+[AUDIO] Capture endpoint: Microphone (2- HyperX QuadCast S)
+[AUDIO] Playback endpoint: Headphones (2- FiiO K11)
+[SCO] HCI synchronous complete status=0x00 handle=0x0101
+[SCO] RX packets=1 bytes=27
+[AUDIO] WASAPI playback started rate=16000 mono PCM16
+[AUDIO] WASAPI capture started rate=16000 mono PCM16
+[SCO] TX queued=1000 (WASAPI -> codec -> SCO)
+[SCO] RX packets=1000 bytes=27
+[AUDIO] capture=79649 phoneRX=78840 render=80193 micPeak=6 phonePeak=32135 TXq=682 RXq=592 under=0/0 over=0/0
+[SCO] TX queued=2000 (WASAPI -> codec -> SCO)
+[SCO] RX packets=2000 bytes=27
+[AUDIO] WASAPI stopped
+[SCO] Audio link released
+usb_sco_stop
+usb_sco_start
+[SCO] Audio link established handle=0x0101 codec=2
+[A2DP] Call has playback priority
+[SCO] TX queued=1 (WASAPI -> codec -> SCO)
+[AUDIO] Capture endpoint: Microphone (2- HyperX QuadCast S)
+[AUDIO] Playback endpoint: Headphones (2- FiiO K11)
+[SCO] HCI synchronous complete status=0x00 handle=0x0101
+[AUDIO] WASAPI capture started rate=16000 mono PCM16
+[SCO] RX packets=1 bytes=27
+[AUDIO] WASAPI playback started rate=16000 mono PCM16
+[SCO] TX queued=1000 (WASAPI -> codec -> SCO)
+[SCO] RX packets=1000 bytes=27
+[AUDIO] capture=79809 phoneRX=62160 render=80193 micPeak=1113 phonePeak=0 TXq=606 RXq=554 under=0/0 over=0/0
+[SCO] TX queued=2000 (WASAPI -> codec -> SCO)
+[SCO] RX packets=2000 bytes=27
+[AUDIO] WASAPI stopped
+[SCO] Audio link released
+usb_sco_stop
+[A2DP] Stream started
+[AUDIO] Playback endpoint: Headphones (2- FiiO K11)
+[A2DP] WASAPI stereo playback started rate=44100
+[A2DP] Media packets=1
+[A2DP] decoded=219136 rendered=220974 queue=1243 under=0 over=0
+[A2DP] Playback stopped
+[A2DP] Stream suspended/released

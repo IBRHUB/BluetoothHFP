@@ -11,6 +11,15 @@ if (-not (Test-Path (Join-Path $source '.git'))) {
     if ($LASTEXITCODE) { throw 'BTstack checkout failed' }
 }
 if ((& git -C $source rev-parse HEAD) -ne $revision) { throw 'Unexpected BTstack revision' }
+$aac = Join-Path $repo 'build\ax201-research\fdk-aac'
+$aacRevision = '7c83d08002332b2730c845eec3497e6bf585dd28'
+if (-not (Test-Path (Join-Path $aac '.git'))) {
+    & git clone https://github.com/mstorsjo/fdk-aac.git $aac
+    if ($LASTEXITCODE) { throw 'AAC dependency clone failed' }
+    & git -C $aac checkout --detach $aacRevision
+    if ($LASTEXITCODE) { throw 'AAC dependency checkout failed' }
+}
+if ((& git -C $aac rev-parse HEAD) -ne $aacRevision) { throw 'Unexpected AAC revision' }
 $build = Join-Path $repo 'build\ax201-headset'
 New-Item -ItemType Directory -Force $build | Out-Null
 $transport = Get-Content (Join-Path $source 'platform\windows\hci_transport_h2_winusb.c') -Raw
@@ -34,7 +43,9 @@ $hfp = $hfp.Replace($needle, $needle + "`n            printf(`"[HFP] Remote SDP 
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
 $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
 $cmake = Join-Path $vs 'Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe'
-& $cmake -S (Join-Path $repo 'native-poc\btstack') -B $build -G 'Visual Studio 17 2022' -A x64 "-DBTSTACK_ROOT=$($source.Replace('\','/'))"
+& $cmake -Wno-dev -S (Join-Path $repo 'native-poc\btstack') -B $build -G 'Visual Studio 17 2022' -A x64 "-DBTSTACK_ROOT=$($source.Replace('\','/'))" "-DFDK_ROOT=$($aac.Replace('\','/'))"
 if ($LASTEXITCODE) { throw 'Headset configure failed' }
 & $cmake --build $build --config Release --parallel 4
 if ($LASTEXITCODE) { throw 'Headset build failed' }
+& (Join-Path (Split-Path $cmake) 'ctest.exe') --test-dir $build -C Release --output-on-failure
+if ($LASTEXITCODE) { throw 'Headset codec tests failed' }

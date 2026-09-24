@@ -3,9 +3,11 @@
 #include <thread>
 #include <cstdio>
 #include <cstdlib>
+#include "app/control.h"
 namespace {
 AudioState state;
 std::thread capture, render;
+std::atomic<bool> muted{false};
 }
 extern "C" void audio_stop(void) {
     if (state.stop) SetEvent(state.stop);
@@ -15,7 +17,7 @@ extern "C" void audio_stop(void) {
 }
 extern "C" void audio_start(unsigned rate) {
     audio_stop();
-    if (rate != 8000 && rate != 16000) { printf("[AUDIO] Unsupported rate\n"); return; }
+    if (rate != 8000 && rate != 16000 && rate != 32000) { printf("[AUDIO] Unsupported rate\n"); return; }
     state.rate = rate; state.capture.reset(rate); state.playback.reset(rate);
     state.captured = state.rendered = state.from_phone = 0;
     state.mic_peak = state.phone_peak = 0;
@@ -26,7 +28,9 @@ extern "C" void audio_start(unsigned rate) {
 }
 extern "C" void audio_capture_read(int16_t* samples, unsigned count) {
     state.capture.pull(samples, count);
+    if (muted) std::fill_n(samples, count, int16_t(0));
 }
+extern "C" void audio_controls(int mute, unsigned gain) { (void)gain; muted = mute != 0; }
 extern "C" void audio_render_write(const int16_t* samples, unsigned count) {
     int peak = 0;
     for (unsigned i = 0; i < count; ++i) peak = std::max(peak, std::abs(int(samples[i])));

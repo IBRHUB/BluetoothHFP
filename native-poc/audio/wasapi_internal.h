@@ -20,7 +20,7 @@ struct WasapiEndpoint {
     ComPtr<IAudioClient> client;
     HANDLE event = nullptr;
     UINT32 capacity = 0;
-    WasapiEndpoint(bool capture, unsigned rate);
+    WasapiEndpoint(bool capture, unsigned rate, unsigned channels = 1);
     ~WasapiEndpoint();
 };
 void capture_worker(AudioState& state);

@@ -1,0 +1,93 @@
+[APP] AX201 headset: HFP calls + A2DP media; microphone starts only on SCO
+[A2DP] Audio Sink registered uuid=0x110B; AAC + SBC stereo + AVRCP
+[HFP] Service registered as HF uuid=0x111E RFCOMM=1 codecs=CVSD,mSBC,LC3-SWB
+[HCI] Controller ready (BTstack working)
+[BT] Local address: 38:68:93:87:62:06
+[BT] Discoverable as AX201 HFP Headset; open iPhone Bluetooth settings
+[APP] connect 44:F2:1B:19:EC:0F request status=0x00
+[HFP] Remote SDP result: status=13 channel=0
+[HFP] SLC failed status=0x0d
+[BT] ACL connection peer=44:F2:1B:19:EC:0F status=0x0d
+[BT] ACL connection peer=44:F2:1B:19:EC:0F status=0x00
+[AVRCP] Connection status=0x00
+[A2DP] AAC configured rate=44100 channels=2 bitrate=256000 VBR=1
+[HFP] RFCOMM connected
+[A2DP] Stream connection status=0x00
+[HFP] SLC established handle=0x0100
+[SCO] Waiting for iPhone call audio route (or command: audio)
+[A2DP] Stream started
+[AUDIO] Playback endpoint: Headphones (2- FiiO K11)
+[QUALITY] Endpoint mix=48000 Hz channels=2 bits=32; Bluetooth PCM=44100 Hz
+[QUALITY] Playback RAW processing enabled (0x00000000)
+[A2DP] WASAPI stereo playback started rate=44100
+[A2DP] AAC media packets=1 decodeErrors=0
+[A2DP] decoded=220160 rendered=220533 queue=3175 under=0 over=0
+[A2DP] decoded=440320 rendered=441033 queue=2825 under=0 over=0
+[A2DP] AAC media packets=500 decodeErrors=0
+[A2DP] decoded=661504 rendered=661533 queue=3500 under=0 over=0
+[A2DP] decoded=881664 rendered=882033 queue=3152 under=0 over=0
+[A2DP] AAC media packets=1000 decodeErrors=0
+[A2DP] decoded=1101824 rendered=1102533 queue=2805 under=0 over=0
+[A2DP] decoded=1323008 rendered=1323033 queue=3481 under=0 over=0
+[A2DP] AAC media packets=1500 decodeErrors=0
+[A2DP] decoded=1543168 rendered=1543533 queue=3136 under=0 over=0
+[A2DP] decoded=1763328 rendered=1764033 queue=2789 under=0 over=0
+[A2DP] decoded=1984512 rendered=1984533 queue=3468 under=0 over=0
+[A2DP] AAC media packets=2000 decodeErrors=0
+[A2DP] decoded=2204672 rendered=2205033 queue=3123 under=0 over=0
+[A2DP] decoded=2424832 rendered=2425533 queue=2779 under=0 over=0
+[A2DP] AAC media packets=2500 decodeErrors=0
+[A2DP] Playback stopped
+[A2DP] Stream suspended/released
+usb_sco_start
+[SCO] Audio link established handle=0x010a codec=2
+[A2DP] Call has playback priority
+[SCO] TX queued=1 (WASAPI -> codec -> SCO)
+[AUDIO] Capture endpoint: Microphone (2- HyperX QuadCast S)
+[AUDIO] Playback endpoint: Headphones (2- FiiO K11)
+[SCO] HCI synchronous complete status=0x00 handle=0x010a
+[QUALITY] Endpoint mix=48000 Hz channels=2 bits=32; Bluetooth PCM=16000 Hz
+[QUALITY] Endpoint mix=48000 Hz channels=2 bits=32; Bluetooth PCM=16000 Hz
+[SCO] RX packets=1 bytes=27
+[QUALITY] Capture RAW processing enabled (0x00000000)
+[QUALITY] Playback RAW processing enabled (0x00000000)
+[AUDIO] WASAPI playback started rate=16000 mono PCM16
+[AUDIO] WASAPI capture started rate=16000 mono PCM16
+[SCO] TX queued=1000 (WASAPI -> codec -> SCO)
+[SCO] RX packets=1000 bytes=27
+[AUDIO] capture=79489 phoneRX=79080 render=80033 micPeak=154 phonePeak=32174 TXq=758 RXq=516 under=0/0 over=0/0
+[SCO] TX queued=2000 (WASAPI -> codec -> SCO)
+[SCO] RX packets=2000 bytes=27
+[SCO] TX queued=3000 (WASAPI -> codec -> SCO)
+[SCO] RX packets=3000 bytes=27
+[AUDIO] capture=159809 phoneRX=159360 render=160353 micPeak=362 phonePeak=32767 TXq=666 RXq=472 under=0/0 over=0/0
+[SCO] TX queued=4000 (WASAPI -> codec -> SCO)
+[SCO] RX packets=4000 bytes=27
+[SCO] TX queued=5000 (WASAPI -> codec -> SCO)
+[SCO] RX packets=5000 bytes=27
+[AUDIO] capture=239969 phoneRX=239520 render=240513 micPeak=246 phonePeak=32501 TXq=656 RXq=468 under=0/0 over=0/0
+[SCO] TX queued=6000 (WASAPI -> codec -> SCO)
+[SCO] RX packets=6000 bytes=27
+[AUDIO] capture=319969 phoneRX=319560 render=320513 micPeak=200 phonePeak=32380 TXq=727 RXq=505 under=0/0 over=0/0
+[SCO] TX queued=7000 (WASAPI -> codec -> SCO)
+[SCO] RX packets=7000 bytes=27
+[SCO] TX queued=8000 (WASAPI -> codec -> SCO)
+[SCO] RX packets=8000 bytes=27
+[AUDIO] capture=399969 phoneRX=399600 render=400513 micPeak=273 phonePeak=32216 TXq=559 RXq=542 under=0/0 over=0/0
+[AUDIO] WASAPI stopped
+[SCO] Audio link released
+usb_sco_stop
+[A2DP] Stream started
+[AUDIO] Playback endpoint: SteelSeries Sonar - Gaming (SteelSeries Sonar Virtual Audio Device)
+[QUALITY] Endpoint mix=96000 Hz channels=8 bits=32; Bluetooth PCM=44100 Hz
+[QUALITY] Playback RAW processing unavailable; default processing retained (0x88890027)
+[A2DP] AAC media packets=1 decodeErrors=0
+[A2DP] WASAPI stereo playback started rate=44100
+[A2DP] decoded=224256 rendered=220974 queue=3279 under=0 over=0
+[A2DP] decoded=444416 rendered=441474 queue=2936 under=0 over=0
+[A2DP] AAC media packets=500 decodeErrors=0
+[A2DP] decoded=665600 rendered=661974 queue=3618 under=0 over=0
+[A2DP] decoded=885760 rendered=882474 queue=3272 under=0 over=0
+[A2DP] AAC media packets=1000 decodeErrors=0
+[A2DP] decoded=1105920 rendered=1102974 queue=2929 under=0 over=0
+[A2DP] decoded=1327104 rendered=1323474 queue=3611 under=0 over=0

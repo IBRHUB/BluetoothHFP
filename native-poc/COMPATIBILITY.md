@@ -1,5 +1,15 @@
 # Compatibility audit and subsequent gates
 
+**Historical audit, updated after hardware testing:** The ownership blocker
+below was resolved with the signed inbox WinUSB package and an exact-instance
+null-driver transition. USB, HCI, iPhone pairing, remote SDP, RFCOMM, SLC, eSCO,
+CVSD and mSBC/WASAPI two-way audio have now passed. The user confirmed both
+call-audio tests. Intel driver rollback and return to WinUSB were also verified.
+A2DP SBC stereo at 44.1 kHz was subsequently added and the user confirmed YouTube
+playback through PC headphones; AVRCP connects on the same controller.
+See README.md and evidence/ for current state. Cold SFI loading remains
+unimplemented; resident firmware was operational on this unit.
+
 ## Transports
 
 | Candidate | Assessment |
@@ -70,7 +80,7 @@ An Intel Windows driver may already have loaded volatile firmware; that cannot
 be relied upon after re-enumeration or a cold boot. No firmware was downloaded
 to this device, and no guessed firmware blobs are included.
 
-## Gates that remain unpassed
+## Gate definitions (through call audio now passed)
 
 1. **USB:** WinUSB open + validated target + interface 0 pipes. Then verify
    access to associated interface 1, without claiming an SCO link from descriptors.
