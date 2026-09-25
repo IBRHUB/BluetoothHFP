@@ -1,0 +1,32 @@
+2026-09-25, Windows desktop release, Flutter 3.47.5
+
+Diagnosis
+Installed Flutter DLL SHA256:
+8BD7B61EEE31AA436EDB182DB41624D1CD3B2688A7E03622320DBEAE067B5251
+Matches the SDK release DLL and its symbols.
+Application event exception: 0xc0000005, DLL offset 0x3c16a.
+Resolved symbol: AccessibilityBridge::CreateRemoveReparentedNodesUpdate + 186.
+
+Checks
+flutter analyze: no issues.
+flutter test: 9 passed, including expanded logs and control contrast.
+flutter build windows --release: passed.
+Win32 GetClientRect: 540 x 960 at 96 DPI.
+Manual image inspection: black Audio page, blue controls, yellow hint,
+white text and gray secondary text; controls fit within the client area.
+Final Material Icons font: 1,645,184 bytes (complete SDK font).
+Audio and Settings icons visible in native release screenshots.
+Expanded Logs displays "No logs yet." without a gray error widget.
+
+Desktop exercise
+Sent a native WM_GETOBJECT request to the Flutter view, then 120 tab-click
+sequences (40 cycles through Settings, Connection and Audio).
+Process remained responsive after the sequences.
+Captured stderr: empty with the default compatibility workaround.
+Earlier attempts with normal semantics emitted AXTree errors under navigation.
+No Bluetooth driver operation or phone call was part of this test.
+No new bluetooth_hfp Application Error event in the final one-hour check.
+
+Limit
+Windows screen-reader semantics are excluded by default to avoid the engine
+crash. This is a workaround, not a patched Flutter DLL. See docs/CRASH-FIX.md.

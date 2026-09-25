@@ -125,7 +125,61 @@ void main() {
     await tester.tap(find.text('Settings').last);
     await tester.pumpAndSettle();
     expect(find.text('Save report'), findsOneWidget);
+    await tester.tap(find.text('Logs'));
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
+    expect(find.text('No logs yet.'), findsOneWidget);
+    controller.consume('Headset ready');
+    controller.changed();
+    await tester.pump();
+    expect(find.text('Headset ready'), findsOneWidget);
+    await tester.tap(find.text('Audio').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Settings').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Headset ready'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+  testWidgets('navigation and disabled controls stay readable on black', (
+    tester,
+  ) async {
+    await tester.pumpWidget(HeadsetApp(controller: controller));
+    final context = tester.element(find.byType(Scaffold));
+    final theme = Theme.of(context);
+    double contrast(Color foreground, Color background) {
+      final a = foreground.computeLuminance();
+      final b = background.computeLuminance();
+      return (a > b ? (a + .05) / (b + .05) : (b + .05) / (a + .05));
+    }
+
+    final style = theme.filledButtonTheme.style!;
+    expect(
+      contrast(
+        style.foregroundColor!.resolve({})!,
+        style.backgroundColor!.resolve({})!,
+      ),
+      greaterThanOrEqualTo(4.5),
+    );
+    expect(
+      contrast(
+        style.foregroundColor!.resolve({WidgetState.disabled})!,
+        Colors.black,
+      ),
+      greaterThanOrEqualTo(4.5),
+    );
+    final nav = theme.navigationBarTheme;
+    expect(
+      contrast(
+        nav.iconTheme!.resolve({WidgetState.selected})!.color!,
+        nav.indicatorColor!,
+      ),
+      greaterThanOrEqualTo(3),
+    );
+    expect(
+      contrast(nav.iconTheme!.resolve({})!.color!, Colors.black),
+      greaterThanOrEqualTo(3),
+    );
     await tester.pumpWidget(const SizedBox());
   });
   test(
@@ -134,7 +188,7 @@ void main() {
       final file = File('${data.path}/not-a-directory');
       await file.writeAsString('test');
       final failed = HeadsetController(dataPath: file.path);
-      await failed.save();
+      await failed.saveInBackground();
       expect(failed.error, contains('Could not save settings'));
       failed.dispose();
     },

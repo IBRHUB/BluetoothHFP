@@ -93,11 +93,16 @@ class HeadsetController extends ChangeNotifier {
   Future<void> save() {
     _saveQueue = _saveQueue
         .catchError((Object _) {})
-        .then((_) => _saveCurrent())
-        .catchError((Object e) {
-          reportError('Could not save settings: $e');
-        });
+        .then((_) => _saveCurrent());
     return _saveQueue;
+  }
+
+  Future<void> saveInBackground() async {
+    try {
+      await save();
+    } catch (e) {
+      reportError('Could not save settings: $e');
+    }
   }
 
   Future<void> _saveCurrent() async {
@@ -299,7 +304,7 @@ class HeadsetController extends ChangeNotifier {
             phones.add(value);
             retries = 0;
             _retry?.cancel();
-            unawaited(save());
+            unawaited(saveInBackground());
           } else {
             _log('Connection status=$status');
             _scheduleReconnect();
@@ -349,7 +354,7 @@ class HeadsetController extends ChangeNotifier {
         case 'forgotten':
           phones.remove(value);
           if (peer == value) peer = '';
-          unawaited(save());
+          unawaited(saveInBackground());
         case 'command':
           if (status != 0) {
             error = 'Command failed ($status): $value';
@@ -363,7 +368,8 @@ class HeadsetController extends ChangeNotifier {
   }
 
   void _scheduleReconnect() {
-    if (!autoReconnect ||
+    if (_disposed ||
+        !autoReconnect ||
         !ready ||
         !validAddress(peer) ||
         retries >= 6 ||
@@ -395,7 +401,7 @@ class HeadsetController extends ChangeNotifier {
     }
     peer = address.toUpperCase();
     phones.add(peer);
-    unawaited(save());
+    unawaited(saveInBackground());
     send('connect $peer');
     changed();
   }
@@ -403,7 +409,7 @@ class HeadsetController extends ChangeNotifier {
   void disconnect() {
     _retry?.cancel();
     autoReconnect = false;
-    unawaited(save());
+    unawaited(saveInBackground());
     send('disconnect');
     changed();
   }

@@ -12,7 +12,9 @@ try {
         if ($LASTEXITCODE) { throw 'Flutter analysis failed' }
         & $flutter test
         if ($LASTEXITCODE) { throw 'Flutter tests failed' }
-        & $flutter build windows --release
+        # Ship the SDK's complete official icon font. Incremental subset assets
+        # previously omitted the Audio and Settings glyphs in release builds.
+        & $flutter build windows --release --no-tree-shake-icons
         if ($LASTEXITCODE) { throw 'Flutter build failed' }
     }
     $stage = Join-Path $repo 'build\release-stage'

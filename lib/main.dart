@@ -8,43 +8,135 @@ import 'controller.dart';
 
 void main(List<String> args) {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(HeadsetApp(smoke: args.contains('--smoke')));
+  runApp(
+    HeadsetApp(
+      smoke: args.contains('--smoke'),
+      enableAccessibility: args.contains('--enable-accessibility'),
+    ),
+  );
 }
 
 class HeadsetApp extends StatelessWidget {
-  const HeadsetApp({super.key, this.smoke = false, this.controller});
+  const HeadsetApp({
+    super.key,
+    this.smoke = false,
+    this.controller,
+    this.enableAccessibility = false,
+  });
   final bool smoke;
+  final bool enableAccessibility;
   final HeadsetController? controller;
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'Bluetooth HFP',
     locale: const Locale('en'),
     debugShowCheckedModeBanner: false,
+    // Flutter's Windows accessibility bridge crashes while reparenting nodes
+    // in this engine build (#175041). Keep a stable, empty native tree until
+    // an engine with the upstream fix is available. Keyboard focus is unchanged.
+    // The launch flag allows testing screen readers after an engine update.
+    builder: (context, child) => ExcludeSemantics(
+      excluding: Platform.isWindows && !enableAccessibility,
+      child: child ?? const SizedBox.shrink(),
+    ),
     theme: ThemeData(
       brightness: Brightness.dark,
       useMaterial3: true,
       scaffoldBackgroundColor: Colors.black,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xff2196f3),
+        seedColor: const Color(0xff64b5f6),
         brightness: Brightness.dark,
-        primary: const Color(0xff2196f3),
-        onPrimary: Colors.white,
+        primary: const Color(0xff64b5f6),
+        onPrimary: Colors.black,
+        secondary: const Color(0xff64b5f6),
+        onSecondary: Colors.black,
+        onSecondaryContainer: Colors.white,
         surface: Colors.black,
         onSurface: Colors.white,
+        onSurfaceVariant: const Color(0xffbdbdbd),
+        outline: const Color(0xff757575),
+        outlineVariant: const Color(0xff616161),
+        surfaceContainerHighest: Colors.black,
+        surfaceContainerHigh: Colors.black,
+        surfaceContainer: Colors.black,
+        surfaceContainerLow: Colors.black,
+        surfaceContainerLowest: Colors.black,
+        surfaceTint: Colors.transparent,
         error: const Color(0xffef5350),
       ),
-      dialogTheme: const DialogThemeData(backgroundColor: Colors.black),
-      navigationBarTheme: const NavigationBarThemeData(
+      disabledColor: const Color(0xff999999),
+      iconTheme: const IconThemeData(color: Colors.white, size: 24),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: const Color(0xff1565c0),
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: Colors.black,
+          disabledForegroundColor: const Color(0xff999999),
+          minimumSize: const Size(0, 44),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xff64b5f6),
+          disabledForegroundColor: const Color(0xff999999),
+          side: const BorderSide(color: Color(0xff757575)),
+          minimumSize: const Size(0, 44),
+        ),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: ButtonStyle(
+          foregroundColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.disabled)
+                ? const Color(0xff999999)
+                : Colors.white,
+          ),
+        ),
+      ),
+      tooltipTheme: TooltipThemeData(
+        textStyle: const TextStyle(color: Colors.white, fontSize: 12),
+        decoration: BoxDecoration(
+          color: Colors.black,
+          border: Border.all(color: const Color(0xff757575)),
+          borderRadius: BorderRadius.circular(6),
+        ),
+      ),
+      dialogTheme: const DialogThemeData(
         backgroundColor: Colors.black,
-        indicatorColor: Color(0xff1565c0),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(20)),
+          side: BorderSide(color: Color(0xff757575)),
+        ),
+      ),
+      canvasColor: Colors.black,
+      chipTheme: const ChipThemeData(backgroundColor: Colors.black),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: Colors.black,
+        indicatorColor: const Color(0xff1565c0),
         surfaceTintColor: Colors.transparent,
+        iconTheme: WidgetStateProperty.resolveWith(
+          (states) => IconThemeData(
+            color: states.contains(WidgetState.selected)
+                ? Colors.white
+                : const Color(0xffbdbdbd),
+            size: 24,
+          ),
+        ),
+        labelTextStyle: WidgetStateProperty.resolveWith(
+          (states) => TextStyle(
+            color: states.contains(WidgetState.selected)
+                ? Colors.white
+                : const Color(0xffbdbdbd),
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
       fontFamily: 'Segoe UI',
       cardTheme: const CardThemeData(
         color: Colors.black,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(16)),
-          side: BorderSide(color: Color(0xff292929)),
+          side: BorderSide(color: Color(0xff616161)),
         ),
         elevation: 0,
         margin: EdgeInsets.only(bottom: 16),
@@ -257,7 +349,7 @@ class _HomeState extends State<Home> {
                   c.render = value!;
                 }
               });
-              unawaited(c.save());
+              unawaited(c.saveInBackground());
             },
     );
   }
@@ -287,24 +379,26 @@ class _HomeState extends State<Home> {
       onDestinationSelected: (value) => setState(() => page = value),
       destinations: const [
         NavigationDestination(icon: Icon(Icons.bluetooth), label: 'Connection'),
-        NavigationDestination(
-          icon: Icon(Icons.volume_up_outlined),
-          label: 'Audio',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.settings_outlined),
-          label: 'Settings',
-        ),
+        NavigationDestination(icon: Icon(Icons.volume_up), label: 'Audio'),
+        NavigationDestination(icon: Icon(Icons.settings), label: 'Settings'),
       ],
     ),
-    body: ListView(
-      key: ValueKey(page),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+    body: IndexedStack(index: page, children: List.generate(3, buildPage)),
+  );
+
+  Widget buildPage(int page) => SingleChildScrollView(
+    key: PageStorageKey(page),
+    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
           c.message,
-          style: TextStyle(color: c.connected || c.ready
-              ? const Color(0xff66bb6a) : Colors.grey),
+          style: TextStyle(
+            color: c.connected || c.ready
+                ? const Color(0xff66bb6a)
+                : Colors.grey,
+          ),
         ),
         const SizedBox(height: 20),
         if (c.busy)
@@ -317,7 +411,10 @@ class _HomeState extends State<Home> {
             color: Colors.black,
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: SelectableText(c.error, style: const TextStyle(color: Color(0xffef5350))),
+              child: SelectableText(
+                c.error,
+                style: const TextStyle(color: Color(0xffef5350)),
+              ),
             ),
           ),
         if (page == 0)
@@ -415,7 +512,7 @@ class _HomeState extends State<Home> {
               onChanged: (v) {
                 c.autoReconnect = v;
                 c.changed();
-                unawaited(c.save());
+                unawaited(c.saveInBackground());
               },
             ),
             Wrap(
@@ -453,13 +550,13 @@ class _HomeState extends State<Home> {
                   : (v) {
                       c.codec = v!;
                       c.changed();
-                      unawaited(c.save());
+                      unawaited(c.saveInBackground());
                     },
             ),
             const SizedBox(height: 8),
             const Text(
               'Stop the headset to change devices or call quality.',
-            style: TextStyle(color: Color(0xffffca28), fontSize: 12),
+              style: TextStyle(color: Color(0xffffca28), fontSize: 12),
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
@@ -473,7 +570,7 @@ class _HomeState extends State<Home> {
               min: 0,
               max: 100,
               onChanged: (v) => c.setMic(v.round()),
-              onChangeEnd: (_) => unawaited(c.save()),
+              onChangeEnd: (_) => unawaited(c.saveInBackground()),
             ),
             Text('Speaker level: ${(c.volume * 100 / 127).round()}%'),
             Slider(
@@ -481,7 +578,7 @@ class _HomeState extends State<Home> {
               min: 0,
               max: 127,
               onChanged: (v) => c.setVolume(v.round()),
-              onChangeEnd: (_) => unawaited(c.save()),
+              onChangeEnd: (_) => unawaited(c.saveInBackground()),
             ),
             Align(
               alignment: Alignment.centerLeft,
@@ -496,7 +593,7 @@ class _HomeState extends State<Home> {
             ),
           ]),
         if (page == 2)
-          section('Settings', Icons.settings_outlined, [
+          section('Settings', Icons.settings, [
             OutlinedButton.icon(
               onPressed: c.busy || !c.supported ? null : c.restore,
               icon: const Icon(Icons.settings_backup_restore),
@@ -512,7 +609,7 @@ class _HomeState extends State<Home> {
                     path = await c.exportDiagnostics();
                   });
                   if (path == null) return;
-                  if (!context.mounted) return;
+                  if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: SelectableText('Report saved: $path'),
@@ -525,16 +622,22 @@ class _HomeState extends State<Home> {
               ),
             ),
             ExpansionTile(
+              key: const PageStorageKey('logs-expanded'),
               title: const Text('Logs'),
               children: [
                 SizedBox(
                   height: 190,
                   child: SingleChildScrollView(
+                    key: const PageStorageKey('logs-scroll'),
+                    padding: const EdgeInsets.all(12),
                     child: SelectableText(
-                      c.logs.reversed.take(80).join('\n'),
+                      c.logs.isEmpty
+                          ? 'No logs yet.'
+                          : c.logs.reversed.take(80).join('\n'),
                       textDirection: TextDirection.ltr,
                       style: const TextStyle(
-                        fontSize: 11,
+                        color: Color(0xffbdbdbd),
+                        fontSize: 12,
                         fontFamily: 'Consolas',
                       ),
                     ),

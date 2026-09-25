@@ -8,6 +8,10 @@ HFP Hands-Free calls, A2DP music and WASAPI microphone/headphone audio.
 
 Run `build/release/BluetoothHFP-2.0.0-Setup.exe`, then open **Bluetooth HFP**
 from the Start menu. Installation itself does not replace Bluetooth drivers.
+The desktop opens at 540 x 960, with Connection, Audio and Settings tabs.
+This build uses a Windows accessibility compatibility workaround for a Flutter
+engine crash. Screen readers cannot read the app controls in this mode;
+mouse and keyboard controls remain available. See `docs/CRASH-FIX.md`.
 The first **Enable headset** operation exports and verifies the original Intel
 driver before taking ownership. Windows asks for administrator permission only
 for driver changes; the desktop/audio engine normally runs as the current user.
