@@ -1,0 +1,254 @@
+-- Selecting Windows SDK version 10.0.19041.0 to target Windows 10.0.26200.
+-- Configuring done (0.0s)
+-- Generating done (0.0s)
+-- Build files have been written to: C:/Users/EXAMPLE/Documents/GitHub/BluetoothHFP/build/ax201-poc
+MSBuild version 17.14.60+43b635718 for .NET Framework
+
+  audio_ring_tests.vcxproj -> C:\Users\EXAMPLE\Documents\GitHub\BluetoothHFP\build\ax201-poc\Release\audio_ring_tests.exe
+  ax201_driver.vcxproj -> C:\Users\EXAMPLE\Documents\GitHub\BluetoothHFP\build\ax201-poc\Release\ax201_driver.exe
+  ax201_probe.vcxproj -> C:\Users\EXAMPLE\Documents\GitHub\BluetoothHFP\build\ax201-poc\Release\ax201_probe.exe
+  descriptor_tests.vcxproj -> C:\Users\EXAMPLE\Documents\GitHub\BluetoothHFP\build\ax201-poc\Release\descriptor_tests.exe
+Internal ctest changing into directory: C:/Users/EXAMPLE/Documents/GitHub/BluetoothHFP/build/ax201-poc
+Test project C:/Users/EXAMPLE/Documents/GitHub/BluetoothHFP/build/ax201-poc
+    Start 1: usb_descriptor_validation
+1/2 Test #1: usb_descriptor_validation ........   Passed    0.00 sec
+    Start 2: audio_ring_clock_drift
+2/2 Test #2: audio_ring_clock_drift ...........   Passed    0.05 sec
+
+100% tests passed, 0 tests failed out of 2
+
+Total Test time (real) =   0.06 sec
+[BUILD] C:\Users\EXAMPLE\Documents\GitHub\BluetoothHFP\build\ax201-poc\Release\ax201_probe.exe
+-- Selecting Windows SDK version 10.0.19041.0 to target Windows 10.0.26200.
+-- Configuring done (0.0s)
+-- Generating done (0.1s)
+-- Build files have been written to: C:/Users/EXAMPLE/Documents/GitHub/BluetoothHFP/build/ax201-headset
+MSBuild version 17.14.60+43b635718 for .NET Framework
+
+  fdk-aac.vcxproj -> C:\Users\EXAMPLE\Documents\GitHub\BluetoothHFP\build\ax201-headset\fdk-aac\Release\fdk-aac.lib
+  hci_transport_h2_winusb.c
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winbase.h(9572,5): warning C5105: macro expansion producing 'defined' has undefined behavior [C:\Users\EXAMPLE\Documents\GitHub\BluetoothHFP\build\ax201-headset\btstack.vcxproj]
+  (compiling source file 'hci_transport_h2_winusb.c')
+  
+  hfp.c
+  btstack_chipset_csr.c
+  btstack_chipset_zephyr.c
+  btstack_run_loop_windows.c
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winbase.h(9572,5): warning C5105: macro expansion producing 'defined' has undefined behavior [C:\Users\EXAMPLE\Documents\GitHub\BluetoothHFP\build\ax201-headset\btstack.vcxproj]
+  (compiling source file '../ax201-research/btstack/platform/windows/btstack_run_loop_windows.c')
+  
+  btstack_stdin_windows.c
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winbase.h(9572,5): warning C5105: macro expansion producing 'defined' has undefined behavior [C:\Users\EXAMPLE\Documents\GitHub\BluetoothHFP\build\ax201-headset\btstack.vcxproj]
+  (compiling source file '../ax201-research/btstack/platform/windows/btstack_stdin_windows.c')
+  
+  btstack_tlv_windows.c
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winbase.h(9572,5): warning C5105: macro expansion producing 'defined' has undefined behavior [C:\Users\EXAMPLE\Documents\GitHub\BluetoothHFP\build\ax201-headset\btstack.vcxproj]
+  (compiling source file '../ax201-research/btstack/platform/windows/btstack_tlv_windows.c')
+  
+  btstack_uart_block_windows.c
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winbase.h(9572,5): warning C5105: macro expansion producing 'defined' has undefined behavior [C:\Users\EXAMPLE\Documents\GitHub\BluetoothHFP\build\ax201-headset\btstack.vcxproj]
+  (compiling source file '../ax201-research/btstack/platform/windows/btstack_uart_block_windows.c')
+  
+  hci_dump_windows_fs.c
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winbase.h(9572,5): warning C5105: macro expansion producing 'defined' has undefined behavior [C:\Users\EXAMPLE\Documents\GitHub\BluetoothHFP\build\ax201-headset\btstack.vcxproj]
+  (compiling source file '../ax201-research/btstack/platform/windows/hci_dump_windows_fs.c')
+  
+  hci_dump_windows_stdout.c
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winbase.h(9572,5): warning C5105: macro expansion producing 'defined' has undefined behavior [C:\Users\EXAMPLE\Documents\GitHub\BluetoothHFP\build\ax201-headset\btstack.vcxproj]
+  (compiling source file '../ax201-research/btstack/platform/windows/hci_dump_windows_stdout.c')
+  
+  ad_parser.c
+  att_db.c
+  att_db_util.c
+  att_dispatch.c
+  att_server.c
+  ancs_client.c
+  battery_service_client.c
+  battery_service_server.c
+  battery_service_v1_server.c
+  bond_management_service_server.c
+  Generating Code...
+  Compiling...
+  cycling_power_service_server.c
+  cycling_speed_and_cadence_service_server.c
+  device_information_service_client.c
+  device_information_service_server.c
+  heart_rate_service_server.c
+  hids_device.c
+  hids_host.c
+  immediate_alert_service_client.c
+  immediate_alert_service_server.c
+  link_loss_service_client.c
+  link_loss_service_server.c
+  nordic_spp_service_server.c
+  object_transfer_service_client.c
+  object_transfer_service_server.c
+  scan_parameters_service_client.c
+  scan_parameters_service_server.c
+  tx_power_service_client.c
+  tx_power_service_server.c
+  ublox_spp_service_server.c
+  gatt_client.c
+  Generating Code...
+  Compiling...
+  gatt_service_client.c
+  le_device_db_tlv.c
+  sm.c
+  btstack_audio_generator.c
+  btstack_audio_player.c
+  btstack_audio_song.c
+  btstack_base64_decoder.c
+  btstack_base64_encoder.c
+  btstack_crypto.c
+  btstack_fsm.c
+  btstack_hid_parser.c
+  btstack_hsm.c
+  btstack_lc3.c
+  btstack_lc3_google.c
+  btstack_lc3plus_fraunhofer.c
+  btstack_linked_list.c
+  btstack_linked_queue.c
+  btstack_ltv_builder.c
+  btstack_memory.c
+  btstack_memory_pool.c
+  Generating Code...
+  Compiling...
+  btstack_resample.c
+  btstack_run_loop.c
+  btstack_sample_rate_compensation.c
+  btstack_slip.c
+  btstack_tlv.c
+  btstack_tlv_builder.c
+  btstack_tlv_none.c
+  btstack_uart_slip_wrapper.c
+  btstack_util.c
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\um\winbase.h(9572,5): warning C5105: macro expansion producing 'defined' has undefined behavior [C:\Users\EXAMPLE\Documents\GitHub\BluetoothHFP\build\ax201-headset\btstack.vcxproj]
+  (compiling source file '../ax201-research/btstack/src/btstack_util.c')
+  
+  a2dp.c
+  a2dp_sink.c
+  a2dp_source.c
+  avdtp.c
+  avdtp_acceptor.c
+  avdtp_initiator.c
+  avdtp_sink.c
+  avdtp_source.c
+  avdtp_util.c
+  avrcp.c
+  avrcp_browsing.c
+  Generating Code...
+  Compiling...
+  avrcp_browsing_controller.c
+  avrcp_browsing_target.c
+  avrcp_controller.c
+  avrcp_cover_art_client.c
+  avrcp_media_item_iterator.c
+  avrcp_target.c
+  bnep.c
+  btstack_cvsd_plc.c
+  btstack_link_key_db_memory.c
+  btstack_link_key_db_static.c
+  btstack_link_key_db_tlv.c
+  btstack_sbc_bluedroid.c
+  btstack_sbc_decoder_bluedroid.c
+  btstack_sbc_encoder_bluedroid.c
+  btstack_sbc_plc.c
+  device_id_server.c
+  gatt_sdp.c
+  goep_client.c
+  goep_server.c
+  hfp_ag.c
+  Generating Code...
+  Compiling...
+  hfp_codec.c
+  hfp_gsm_model.c
+  hfp_hf.c
+  hfp_msbc.c
+  hid_device.c
+  hid_host.c
+  hsp_ag.c
+  hsp_hs.c
+  obex_iterator.c
+  obex_message_builder.c
+  obex_parser.c
+  obex_srm_client.c
+  obex_srm_server.c
+  pan.c
+  pbap_client.c
+  rfcomm.c
+  sdp_client.c
+  sdp_client_rfcomm.c
+  sdp_server.c
+  sdp_util.c
+  Generating Code...
+  Compiling...
+  spp_server.c
+  hci.c
+  hci_cmd.c
+  hci_dump.c
+  hci_dump_buffered.c
+  hci_event.c
+  hci_event_builder.c
+  hci_transport_em9304_spi.c
+  hci_transport_h4.c
+  hci_transport_h5.c
+  l2cap.c
+  l2cap_signaling.c
+  Generating Code...
+  btstack.vcxproj -> C:\Users\EXAMPLE\Documents\GitHub\BluetoothHFP\build\ax201-headset\Release\btstack.lib
+  headset_main.c
+  a2dp_sink.c
+     Creating library C:/Users/EXAMPLE/Documents/GitHub/BluetoothHFP/build/ax201-headset/Release/lc3_quality_tests.lib and object C:/Users/EXAMPLE/Documents/GitHub/BluetoothHFP/build/ax201-headset/Release/lc3_quality_tests.exp
+  lc3_quality_tests.vcxproj -> C:\Users\EXAMPLE\Documents\GitHub\BluetoothHFP\build\ax201-headset\Release\lc3_quality_tests.exe
+  hfp_audio_codec.c
+  hfp_hf.c
+  Generating Code...
+     Creating library C:/Users/EXAMPLE/Documents/GitHub/BluetoothHFP/build/ax201-headset/Release/ax201_headset.lib and object C:/Users/EXAMPLE/Documents/GitHub/BluetoothHFP/build/ax201-headset/Release/ax201_headset.exp
+  ax201_headset.vcxproj -> C:\Users\EXAMPLE\Documents\GitHub\BluetoothHFP\build\ax201-headset\Release\ax201_headset.exe
+Internal ctest changing into directory: C:/Users/EXAMPLE/Documents/GitHub/BluetoothHFP/build/ax201-headset
+Test project C:/Users/EXAMPLE/Documents/GitHub/BluetoothHFP/build/ax201-headset
+    Start 1: lc3_speech_roundtrip
+1/1 Test #1: lc3_speech_roundtrip .............   Passed    0.01 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.01 sec
+Resolving dependencies...
+Downloading packages...
+  material_color_utilities 0.13.0 (0.13.1 available)
+  meta 1.18.3 (1.19.0 available)
+  test_api 0.7.12 (0.7.14 available)
+  vector_math 2.4.0 (2.4.3 available)
+Got dependencies!
+4 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Analyzing BluetoothHFP...                                       
+No issues found! (ran in 4.0s)
+Resolving dependencies...
+Downloading packages...
+  material_color_utilities 0.13.0 (0.13.1 available)
+  meta 1.18.3 (1.19.0 available)
+  test_api 0.7.12 (0.7.14 available)
+  vector_math 2.4.0 (2.4.3 available)
+Got dependencies!
+4 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+00:00 +0: loading C:/Users/EXAMPLE/Documents/GitHub/BluetoothHFP/test/widget_test.dart
+00:00 +0: only valid Bluetooth addresses reach connection commands
+00:00 +1: structured events track codecs and clear stale routes on disconnect
+00:00 +2: overlapping saves produce a complete settings document
+00:00 +3: text logs cannot invent a connected state
+00:00 +4: unsupported adapter blocks enable but preserves diagnosis UI
+00:00 +5: All tests passed!
+Resolving dependencies...
+Downloading packages...
+  material_color_utilities 0.13.0 (0.13.1 available)
+  meta 1.18.3 (1.19.0 available)
+  test_api 0.7.12 (0.7.14 available)
+  vector_math 2.4.0 (2.4.3 available)
+Got dependencies!
+4 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Building Windows application...                                    23.4s
+√ Built build\windows\x64\runner\Release\bluetooth_hfp.exe
+[RELEASE] Installer: C:\Users\EXAMPLE\Documents\GitHub\BluetoothHFP\build\release\BluetoothHFP-2.0.0-Setup.exe

@@ -2,11 +2,12 @@
 #include "wasapi_internal.h"
 #include <thread>
 #include <cstdio>
+#include "app/control.h"
 namespace {
 PcmRing<2> ring;
 HANDLE stop_event = nullptr;
 std::thread worker;
-std::atomic<unsigned> volume{100};
+std::atomic<unsigned> volume{127};
 std::atomic<uint64_t> decoded_frames{0};
 void run(unsigned rate) {
     const HRESULT com = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
@@ -37,6 +38,7 @@ void run(unsigned rate) {
                 ring.pull(pcm, count);
                 const unsigned gain = volume.load();
                 for (unsigned i = 0; i < count * 2; ++i) pcm[i] = static_cast<int16_t>(int(pcm[i]) * int(gain) / 127);
+                audio_apply_output(pcm, count * 2);
                 check_audio(render->ReleaseBuffer(count, 0), "Media release buffer");
                 rendered += count;
             }
@@ -48,7 +50,7 @@ void run(unsigned rate) {
                 next_log = GetTickCount64() + 5000;
             }
         }
-    } catch (const std::exception& e) { printf("[A2DP] Playback failed: %s\n", e.what()); }
+    } catch (const std::exception& e) { control_event("audioError", e.what(), 1); printf("[A2DP] Playback failed: %s\n", e.what()); }
     if (SUCCEEDED(com)) CoUninitialize();
 }
 }

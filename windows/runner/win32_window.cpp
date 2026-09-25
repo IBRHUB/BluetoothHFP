@@ -1,6 +1,7 @@
 #include "win32_window.h"
 
 #include <dwmapi.h>
+#include <algorithm>
 #include <flutter_windows.h>
 
 #include "resource.h"
@@ -134,10 +135,20 @@ bool Win32Window::Create(const std::wstring& title,
   UINT dpi = FlutterDesktopGetDpiForMonitor(monitor);
   double scale_factor = dpi / 96.0;
 
+  // The requested size is the Flutter content area, excluding the title bar.
+  RECT bounds{0, 0, Scale(size.width, scale_factor), Scale(size.height, scale_factor)};
+  AdjustWindowRectExForDpi(&bounds, WS_OVERLAPPEDWINDOW, FALSE, 0, dpi);
+  MONITORINFO monitor_info{sizeof(MONITORINFO)};
+  GetMonitorInfo(monitor, &monitor_info);
+  const auto& work = monitor_info.rcWork;
+  int width = (std::min)(bounds.right - bounds.left, work.right - work.left);
+  int height = (std::min)(bounds.bottom - bounds.top, work.bottom - work.top);
+  LONG x = (std::max)(work.left, (std::min)(static_cast<LONG>(Scale(origin.x, scale_factor)), work.right - width));
+  LONG y = (std::max)(work.top, (std::min)(static_cast<LONG>(Scale(origin.y, scale_factor)), work.bottom - height));
+
   HWND window = CreateWindow(
       window_class, title.c_str(), WS_OVERLAPPEDWINDOW,
-      Scale(origin.x, scale_factor), Scale(origin.y, scale_factor),
-      Scale(size.width, scale_factor), Scale(size.height, scale_factor),
+      x, y, width, height,
       nullptr, nullptr, GetModuleHandle(nullptr), this);
 
   if (!window) {

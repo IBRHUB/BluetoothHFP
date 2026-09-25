@@ -1,92 +1,97 @@
-# Bluetooth HFP
+﻿# Bluetooth HFP for Windows 11
 
-The independent Windows C++ console experiment for direct AX201 USB ownership
-is in [native-poc](native-poc/README.md). Direct USB, HFP-HF, pairing, eSCO and
-two-way CVSD/mSBC call audio are verified. A2DP stereo media support is included.
+Flutter/Dart desktop controller for the native AX201 Bluetooth headset engine.
+The internal USB Bluetooth controller is owned by WinUSB while the engine provides
+HFP Hands-Free calls, A2DP music and WASAPI microphone/headphone audio.
 
-A Flutter desktop interface for receiving iPhone media over Bluetooth and routing available iPhone call audio through a Windows PC microphone and output device. Media connection, call transport, and the actual microphone/audio route have separate status messages.
+## Install and use
 
-## Run
+Run `build/release/BluetoothHFP-2.0.0-Setup.exe`, then open **Bluetooth HFP**
+from the Start menu. Installation itself does not replace Bluetooth drivers.
+The first **Enable headset** operation exports and verifies the original Intel
+driver before taking ownership. Windows asks for administrator permission only
+for driver changes; the desktop/audio engine normally runs as the current user.
 
-### Wired audio (iPhone 12 Pro Max / iOS 17)
+On iPhone, pair with **AX201 HFP Headset** and select it as the call/media output.
+The app can scan, connect, disconnect, forget local pairing, reconnect, choose
+Windows audio endpoints, mute/attenuate the microphone, adjust playback volume,
+and show negotiated call/media codecs. Endpoint/codec changes require stopping
+the headset first. Phone-side iOS pairing approvals and routing stay on iPhone.
 
-The app now supports an explicit two-way WASAPI bridge through audio interfaces,
-without Bluetooth pairing or an active call. See [WIRED-AUDIO.md](WIRED-AUDIO.md)
-for the required Lightning hardware, cabling and phone-side acceptance test.
-A charging/data cable directly between the phone and PC does not expose the
-audio endpoints this feature requires. Phone-side reception remains unverified.
+Use **Restore Windows Bluetooth** in the app to return the controller to Windows.
+There is also a Start-menu recovery shortcut that works without the Flutter UI.
+Closing the app offers either restoration or leaving the controller in headset
+mode with the engine stopped. Bluetooth peripherals using the same controller
+are unavailable while the headset owns it. Wi-Fi is not rebound.
 
-Select **Wired mode**, keep your PC **Microphone** and **Headphones**,
-then select the interface **From phone** capture and **To phone** playback
-endpoints. Press **Start**. Stop is explicit; changing an endpoint
-stops wired routing, and a missing endpoint stops the bridge without substituting
-another device. Reconnect the interface and press Start again. Endpoint choices
-are remembered, but transmitting does not resume automatically after relaunch.
-Two-channel phone audio preserves left/right channels when headphones expose
-at least two channels; the microphone path is mono. Windows default audio output
-is not changed. Device-internal routing and the iOS app determine the final path.
+## Compatibility and tested quality
 
-### Bluetooth
+- Windows 11 x64, Intel Bluetooth USB `8087:0026` (AX201), one controller at a time.
+- Reference hardware: iPhone 12 Pro Max, HyperX QuadCast S, FiiO K11.
+- Verified calls: CVSD 8 kHz and mSBC 16 kHz, microphone and playback.
+- Verified media: AAC-LC stereo 44.1 kHz / 256 kbit/s VBR; SBC fallback.
+- LC3-SWB 32 kHz is offered and passes a local codec test; the reference iPhone
+  chose mSBC. No LC3 phone interoperability claim.
+- Other USB identities are blocked before driver changes, not labelled supported.
+  Multiple matching controllers are rejected to avoid ambiguous ownership.
+- Reconnect and suspend/resume handling are implemented; a real cold power cycle,
+  long-duration stress and additional controller/phone combinations still need
+  physical validation. Resident firmware or original Intel driver bootstrap is
+  used; no native SFI/DDC firmware uploader is claimed.
 
-1. Install Flutter and Visual Studio with the **Desktop development with C++** workload.
-2. Pair the iPhone with Windows Bluetooth.
-3. Run `flutter build windows --release`, then `powershell -File windows/package/package-windows.ps1 -Register`. Local registration requires Windows Developer Mode. Launch **Bluetooth HFP** from Start or the generated `build/Launch Bluetooth HFP.lnk` so Windows supplies the app's package identity and declared phone capabilities. `flutter run -d windows` remains useful for UI work, but does not supply that identity.
-4. Select the paired iPhone. The app opens the Windows A2DP receiver using `AudioPlaybackConnection` and separately requests call transport access using `PhoneLineTransportDevice`. Play media on iPhone and choose this PC as its Bluetooth output. **Media uses Windows audio output**, so select your headphones in **Sound settings**. The app's Input/Output selectors apply to the WASAPI call bridge.
-5. Enable **Settings > Privacy & security > Phone calls**. If Windows denies transport access even with the installed package and permissions enabled, set up iPhone calling in **Phone Link**. This is an actual OS/API limitation; the app reports it instead of claiming that the microphone is working.
-6. Select the PC microphone and call output, then start/transfer a call on iPhone and choose the PC. During the call, open iPhone **Control Center > app controls > Audio Input / Input** and select the PC if offered. Apple documents this selector in its [iPhone guide](https://support.apple.com/guide/iphone/iph8dc8a5c3c/ios). Repeat in the recording app when testing voice messages; available inputs depend on the app and active Bluetooth profile. Call routing turns green only after capture delivers packets and playback accepts more than its initial buffer in both directions. This verifies Windows stream progress, not remote reception. A stream that stops progressing for three seconds is closed and retried automatically. Test with a real call.
-7. **Reconnect** retries media and call connection. **Stop routing** closes this app's media connection and audio streams and removes only call registrations created by this instance. It does not unpair the phone or remove Windows drivers.
+## Data, updates and removal
 
-Use **Test mic through headphones (5 seconds)** to test the selected microphone and output without a phone call. Speak and listen for your own voice; the meter retains the maximum captured level. This test does not record to disk or send audio to the phone. A microphone signal confirms local capture, not iPhone call support. The test is disabled while the call bridge is active. Successful Input/Output choices are remembered per Windows user (`HKCU\Software\BluetoothHFP`) instead of reverting to virtual communications defaults on every launch.
+- `%LOCALAPPDATA%\BluetoothHFP`: settings, private pairing keys and local runtime.
+- `%ProgramData%\BluetoothHFP\backups`: original driver exports, hashes and recovery
+  instructions. Only Administrators/SYSTEM can write this directory.
+- Updates preserve both locations. The installer verifies its payload SHA256.
+- Uninstall from Windows Installed Apps restores Bluetooth first. A recovery
+  failure stops removal and retains the app. If the managed controller is absent,
+  reconnect it before uninstalling. Settings and backups are intentionally retained.
+- Diagnostic exports contain bounded text logs and status, not pairing-key files,
+  packet dumps, or recorded audio. Exported Bluetooth addresses and device instance
+  identities are redacted. The engine does not create raw HCI packet captures.
 
-The script also builds `build/BluetoothHFP.msix`. This distribution artifact is unsigned; sign it before distributing it. For testing on this machine use the registered app, not a double-click on the unsigned MSIX. Do not move/delete `build/package` while its loose development package is registered. Unregister it with `Get-AppxPackage BluetoothHFP.Desktop | Remove-AppxPackage` when no longer needed.
+This is an unsigned personal-use build. See `native-poc/THIRD-PARTY.md` and the
+bundled `licenses/` sources/notices before redistribution or commercial use.
+No signing certificate, test-signing mode, or Secure Boot change is installed.
 
-## How it works
+## Build
 
-### Experimental microphone without a call
-
-Select the iPhone and PC Input, then enable **Bluetooth microphone without a call**. Start recording in the iPhone app and select the PC in Audio Input if offered. This mode opens only PC capture → iPhone HF render; it does not require a PC output or phone capture stream. An idle/failed phone downlink therefore cannot stop the uplink. It does not dial, transfer a call, invoke Siri, or record a file locally. Disable the switch to restore two-way call routing; Stop routing also clears the mode.
-
-This is an experiment using the existing Windows HFP endpoint, not a separate Bluetooth stack. It does not make a missing iPhone input appear or resolve a blocked call transport. The three-second progress watchdog and automatic retries remain enabled. A progressing Windows buffer is not proof of iPhone reception. Verify a recording by speaking, physically muting the PC mic, speaking again, and playing back the result. If the PC is absent from Audio Input or the buffer stalls, this mode has not solved the device/app limitation. End-to-end recording without a call remains unverified.
-
-For a local diagnostic report of this mode, close the app and run `powershell -File windows/package/diagnose-windows.ps1 -PhoneAddress <12-hex-digit-address> -VoiceMode` after registering the updated build. This sends the selected PC microphone to the exposed Bluetooth endpoint for the 45-second observation window; start the iPhone recording yourself. The report includes `voiceMode`, `microphoneFrames`, and the stream status, but contains no recorded audio. Do not combine this option with `-TransferActiveCall`.
-
-Apple requires the recording app to allow [Bluetooth HFP input](https://developer.apple.com/documentation/avfaudio/avaudiosession/categoryoptions-swift.struct/allowbluetoothhfp). A separate Windows HFP implementation would also need access to SCO through an appropriate [Bluetooth profile driver](https://learn.microsoft.com/en-us/windows-hardware/drivers/bluetooth/using-the-bluetooth-driver-stack); sending PCM over RFCOMM is insufficient.
-
-For the local Windows HFP registration bypass experiment, its observed results, and rollback instructions, see [HFP-EXPERIMENT.md](HFP-EXPERIMENT.md). The registry change is experimental and machine-wide; call-transport connection success does not prove microphone delivery.
-
-**Use PC for active call** enumerates Windows phone lines, matches the selected phone's transport ID, and requests `PhoneCall.ChangeAudioDeviceAsync(LocalDevice)` for a talking call. It does not dial, answer, or unmute. Windows must expose both the phone line and the call to this app. A voice message is not a phone call and cannot be transferred with this API. Failures and the absence of a matching line/call are reported in the call status text.
-
-Building this feature requires a Windows 11 build host (or Windows 20348+ metadata supplied via the CMake `HFP_METADATA` path) and the SDK `cppwinrt.exe` tool. CMake generates WinRT projections into the build directory; the installed 19041 SDK alone lacks the newer call-transfer declarations. The app checks runtime availability before requesting transfer.
-
-Flutter/Dart owns the interface. The C++ runner enumerates paired phones and audio endpoints. A cancellable MTA worker matches WinRT device interfaces by Bluetooth address/container identity, opens media reception, requests call access, registers the app if permitted, and attempts call transport connection. The call bridge opens two WASAPI shared-mode streams once the phone's hands-free capture/render endpoints are available:
-
-```text
-iPhone HF Audio capture  →  selected PC output
-selected PC microphone   →  iPhone HF Audio render
-```
-
-Windows handles HFP and SCO transport. Selecting a phone now requests media and call connections through Windows; the app does not implement an independent HFP stack or bypass a denied permission. Pairing or a successful call transport request alone is not proof of an active call audio path. Endpoint discovery currently uses Windows friendly-name conventions for HF Audio; drivers using different/localized names may need additional matching support. Audio initialization failures retry at ten-second intervals. Failure of either call stream stops the other stream too.
-
-Media uses A2DP; calls use HFP. A2DP has no microphone path. This app cannot force every iPhone app, voice recorder, or voice message feature to use the PC microphone. Actual app behavior depends on iOS audio routing. The media API owns playback routing, so the Output selector cannot redirect media independently of Windows sound settings. There is no automatic dial/answer/hang-up implementation.
-
-The two streams use the endpoint mix formats and convert between PCM and float with a bounded mono buffer and linear sample-rate conversion. This keeps the app self-contained but does not provide echo cancellation; headphones are recommended.
-
-Relevant Windows documentation: [Phone Link iPhone setup](https://support.microsoft.com/en-us/windows/apps/phonelink/phone-link-requirements-and-setup), [Windows HFP accessory roles](https://learn.microsoft.com/en-us/windows-hardware/design/accessory-guidelines/bluetooth-accessory-guidelines/bluetooth-accessory-guidelines-classic-audio), [Bluetooth service state](https://learn.microsoft.com/en-us/windows/win32/api/bluetoothapis/nf-bluetoothapis-bluetoothsetservicestate), and [WASAPI](https://learn.microsoft.com/en-us/windows/win32/coreaudio/wasapi).
-
-## Verification
-
-Run `flutter analyze`, `flutter test`, and `flutter build windows`. A physical iPhone call is required to verify the Bluetooth HFP and SCO path.
-
-The window owns its controller only between `OnCreate` and `OnDestroy`. This matters because `Win32Window::Create` invokes `Destroy` before the first window exists; stopping a controller constructed as a direct window member at that point previously killed the Bluetooth worker before the user could connect.
-
-Run the opt-in Windows integration test with one paired test phone:
+Visual Studio 2022 C++ Build Tools + Windows SDK, Flutter SDK matching pubspec,
+Git and Windows PowerShell are required. No external installer compiler is needed.
 
 ```powershell
-flutter test integration_test/device_flow_test.dart -d windows --dart-define=HFP_HARDWARE_TEST=true --dart-define=HFP_TEST_INPUT=HyperX --dart-define=HFP_TEST_OUTPUT=FiiO
+.\windows\package\Build-Release.ps1 -FlutterRoot C:\path\to\flutter
 ```
 
-Replace the device-name fragments for your hardware. The test launches the real window, selects the physical devices, opens a five-second local microphone-to-output stream, checks that it closes, and verifies that Bluetooth progresses beyond the initial connecting state. It does not dial or answer a call. On the development machine the local test captured a nonzero HyperX signal and opened the FiiO render stream; media also connected. Call transport access remained denied by Windows. Hearing the output and completing a phone call still require a human check.
+This builds and tests native code, analyzes/tests Flutter, builds the desktop,
+packages dependencies and uses Windows IExpress for the setup executable.
+`-SkipBuild -StageOnly` stages existing binaries; `-SkipBuild` packages them.
+The final `build/release/` folder contains one setup executable and `SHA256.txt`.
+Packaging inputs and the staging copy are removed after successful packaging.
+Installer source remains in `windows/package/`. Native and Flutter build caches
+remain available for incremental builds; they are not separate product releases.
+The installer can be exercised without prompts using
+`build\release\BluetoothHFP-2.0.0-Setup.exe /Q:A` from an elevated shell.
 
-`powershell -File windows/package/diagnose-windows.ps1` checks the registered app's package identity and current devices. Add `-PhoneAddress <12-hex-digit-address>` to attempt a connection for 45 seconds without dialing or answering. The local report is `build/connection-diagnostics.txt`; media success and denied call access are recorded separately. The hardware smoke test on the development machine opened media successfully, but Windows returned denied call access. This is not an end-to-end call-audio pass.
+## Source layout
 
-API references: [Bluetooth media reception](https://learn.microsoft.com/en-us/windows/apps/develop/media-playback/enable-remote-audio-playback), [PhoneLineTransportDevice](https://learn.microsoft.com/en-us/uwp/api/windows.applicationmodel.calls.phonelinetransportdevice), and [call access capability](https://learn.microsoft.com/en-us/uwp/api/windows.applicationmodel.calls.phonelinetransportdevice.requestaccessasync).
+- `lib/`: Dart application and lifecycle controller.
+- `windows/runner/`: small platform bridge for audio inventory, elevation, window lifecycle.
+- `windows/package/`: verified installer, uninstall/recovery scripts, release builder.
+- `native-poc/app/`: native engine entry point and versioned IPC.
+- `native-poc/bluetooth/`: USB/HCI, HFP, A2DP and codecs.
+- `native-poc/audio/`: WASAPI, bounded rings and high-quality drift interpolation.
+- `native-poc/tests/`, `test/`, `integration_test/`: native, Dart and opt-in hardware tests.
+- `native-poc/evidence/`: hardware acceptance snapshots, excluding private link keys.
+
+Old WinRT Audio Gateway/Phone Link/wired audio experiments and MSIX registration
+code have been removed from the active project. Original research/probe/recovery
+tools remain for hardware diagnosis; they are not the desktop control path.
+Retired local build artifacts and experiment notes are archived under
+`.local/release-reference/retired-builds/`, excluded from version control and
+release packaging. Original driver backups are kept separately under
+`.local/ax201-backup/` and the protected ProgramData recovery folder.
+
+See `docs/IPC.md` and `docs/RELEASE-VALIDATION.md` for protocol and validation details.

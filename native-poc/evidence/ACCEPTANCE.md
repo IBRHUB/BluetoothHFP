@@ -1,5 +1,8 @@
 # Hardware acceptance, 2026-09-24
 
+Privacy: device addresses in these evidence files are synthetic replacements;
+local instance suffixes, profile paths and endpoint GUIDs are redacted.
+
 User confirmed during the live tests:
 
 1. AX201 HFP Headset discovered and paired on iPhone 12 Pro Max.

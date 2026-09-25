@@ -5,7 +5,9 @@ $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 $exe = Join-Path $repo 'build\ax201-headset\Release\ax201_headset.exe'
 if (-not (Test-Path $exe)) { throw 'Run Build-Headset.ps1 first' }
 if (Get-Process ax201_headset -ErrorAction SilentlyContinue) { throw 'Headset is already running' }
-$instance = 'USB\VID_8087&PID_0026\5&1A60D403&0&14'
+$adapters = @(Get-PnpDevice -PresentOnly | Where-Object InstanceId -like 'USB\VID_8087&PID_0026\*')
+if ($adapters.Count -ne 1) { throw 'Exactly one AX201 controller is required. No driver changed.' }
+$instance = $adapters[0].InstanceId
 $service = (Get-PnpDeviceProperty -InstanceId $instance -KeyName DEVPKEY_Device_Service).Data
 if ($service -ne 'WINUSB') { & (Join-Path $PSScriptRoot 'Set-BluetoothDriver.ps1') -Mode WinUSB }
 $run = Join-Path $repo '.local\hfp-run'

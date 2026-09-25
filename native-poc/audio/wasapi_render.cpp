@@ -1,5 +1,6 @@
 #include "wasapi_internal.h"
 #include <cstdio>
+#include "app/control.h"
 void render_worker(AudioState& state) {
     const HRESULT com = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     try {
@@ -25,6 +26,7 @@ void render_worker(AudioState& state) {
             if (available) {
                 check_audio(render->GetBuffer(available, &data), "Get render buffer");
                 state.playback.pull(reinterpret_cast<int16_t*>(data), available);
+                audio_apply_output(reinterpret_cast<int16_t*>(data), available);
                 check_audio(render->ReleaseBuffer(available, 0), "Release render buffer");
                 state.rendered += available;
             }
@@ -38,6 +40,6 @@ void render_worker(AudioState& state) {
                 next_log = GetTickCount64() + 5000;
             }
         }
-    } catch (const std::exception& error) { printf("[AUDIO] Playback failed: %s\n", error.what()); SetEvent(state.stop); }
+    } catch (const std::exception& error) { control_event("audioError", error.what(), 1); printf("[AUDIO] Playback failed: %s\n", error.what()); SetEvent(state.stop); }
     if (SUCCEEDED(com)) CoUninitialize();
 }

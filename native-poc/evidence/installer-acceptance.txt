@@ -1,0 +1,8 @@
+[TEST] Setup EXE installed exact release binaries
+[ROLLBACK] Original Bluetooth provider/version/service/filters verified; Wi-Fi PnP status verified
+[TEST] Uninstall preserved exact pairing key file and original driver backup
+[TEST] Reinstalled successfully; pairing keys retained
+[TEST] In-place update succeeded with app stopped
+[TEST] Corrupt payload rejected without changing installed executable
+[TEST] Uninstall rejected while app/engine active; app and engine retained
+[TEST] Release contains no local pairing keys, packet dumps or exported driver package

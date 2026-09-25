@@ -1,17 +1,17 @@
 [APP] AX201 HFP-HF PoC; warm firmware required; WASAPI starts only on SCO
 [HFP] Service registered as HF uuid=0x111E RFCOMM=1 codecs=CVSD,mSBC
 [HCI] Controller ready (BTstack working)
-[BT] Local address: 38:68:93:87:62:06
+[BT] Local address: 02:00:00:00:00:01
 [BT] Discoverable as AX201 HFP Headset; open iPhone Bluetooth settings
-[APP] connect 44:F2:1B:19:EC:0F request status=0x00
-[BT] ACL connection peer=44:F2:1B:19:EC:0F status=0x00
+[APP] connect 02:00:00:00:00:02 request status=0x00
+[BT] ACL connection peer=02:00:00:00:00:02 status=0x00
 [HFP] Remote SDP result: status=0 channel=8
 [BT] Authentication complete status=0x00
 [HFP] RFCOMM connected
 [HFP] SLC established handle=0x0100
 [SCO] Waiting for iPhone call audio route (or command: audio)
 [HFP] SLC released
-[BT] ACL connection peer=44:F2:1B:19:EC:0F status=0x00
+[BT] ACL connection peer=02:00:00:00:00:02 status=0x00
 [BT] Headset Just Works pairing request
 [BT] Pairing complete status=0x00
 [HFP] RFCOMM connected

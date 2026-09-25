@@ -4,7 +4,6 @@
 #include "classic/btstack_link_key_db_tlv.h"
 #include "ble/le_device_db_tlv.h"
 #include "hci_transport_usb.h"
-#include "hci_dump_windows_fs.h"
 #include "audio/audio_bridge.h"
 #include "bluetooth/a2dp_sink.h"
 #include "control.h"
@@ -21,19 +20,14 @@ static btstack_timer_source_t timer;
 static int working;
 static int stopping;
 static unsigned ticks;
-static hci_dump_t filtered_dump;
-static void log_control_packet(uint8_t type, uint8_t in, uint8_t * packet, uint16_t len) {
-    // Keep HCI/control evidence without recording call audio payloads.
-    if (type == HCI_SCO_DATA_PACKET || type == HCI_ACL_DATA_PACKET) return;
-    hci_dump_windows_fs_get_instance()->log_packet(type, in, packet, len);
-}
 void hal_led_toggle(void) {}
 
 static void poll_control(btstack_timer_source_t * ts) {
     char ipc_command[512];
-    int ipc_result = control_read(ipc_command, sizeof(ipc_command));
-    if (ipc_result < 0) strcpy_s(ipc_command, sizeof(ipc_command), "quit");
-    if (ipc_result != 0 && !stopping) {
+    for (unsigned request = 0; request < 16 && !stopping; ++request) {
+        int ipc_result = control_read(ipc_command, sizeof(ipc_command));
+        if (!ipc_result) break;
+        if (ipc_result < 0) strcpy_s(ipc_command, sizeof(ipc_command), "quit");
         if (strcmp(ipc_command, "quit") == 0) {
             headset_media_shutdown(); audio_stop(); stopping = 1; hci_power_control(HCI_POWER_OFF);
         } else headset_command(ipc_command);
@@ -69,6 +63,7 @@ static void state_event(uint8_t type, uint16_t channel, uint8_t * packet, uint16
         }
         case HCI_STATE_OFF:
             if (stopping) { btstack_tlv_windows_deinit(&database); printf("[BT] Stopped\n"); exit(0); }
+            if (working) { control_event("error", "Controller powered off unexpectedly", 5); headset_media_shutdown(); audio_stop(); exit(5); }
             break;
         default: break;
     }
@@ -81,10 +76,8 @@ int main(void) {
     printf("[APP] AX201 headset: HFP calls + A2DP media; microphone starts only on SCO\n");
     btstack_memory_init();
     btstack_run_loop_init(btstack_run_loop_windows_get_instance());
-    hci_dump_windows_fs_open("hci_dump.pklg", HCI_DUMP_PACKETLOGGER);
-    filtered_dump = *hci_dump_windows_fs_get_instance();
-    filtered_dump.log_packet = log_control_packet;
-    hci_dump_init(&filtered_dump);
+    // Do not persist HCI packets: pairing events can contain secret link keys.
+    // Structured status events provide diagnostics without raw packet captures.
     hci_init(hci_transport_usb_instance(), NULL);
     const btstack_tlv_t * tlv = btstack_tlv_windows_init_instance(&database, "link-keys.tlv");
     btstack_tlv_set_instance(tlv, &database);

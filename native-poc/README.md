@@ -1,6 +1,10 @@
-﻿# AX201 Windows Bluetooth headset PoC
+# AX201 Windows Bluetooth headset PoC
 
-Native C/C++ console project, independent of Flutter. The internal AX201 is
+For the desktop UI, installer and driver recovery workflow, start with the
+repository README. This directory retains the native engine and development
+tools; the console commands below are diagnostic/developer entry points.
+
+Native C/C++ engine, independent of Flutter. The internal AX201 is
 owned directly through WinUSB, with BTstack acting as Hands-Free Unit.
 
 ## Verified hardware results
@@ -99,8 +103,10 @@ start script tries the original Intel driver once to initialize firmware, then
 returns to WinUSB and rechecks. This fallback has not been tested across a real
 cold power cycle; a native SFI/DDC loader is not implemented.
 
-The transport deliberately selects this machine's exact USB instance:
-USB\VID_8087&PID_0026\5&1A60D403&0&14. Porting requires new inventory and backup.
+The desktop passes the selected exact USB instance through AX201_USB_INSTANCE.
+The transport accepts only USB 8087:0026; the driver workflow rejects ambiguous
+multiple-controller inventories. Historical console scripts still target the
+reference machine. Other identities require new inventory and validation.
 Long calls, suspend/resume and device removal are not exhaustively tested.
 The first media run had 811 underrun frames during startup/early playback
 (about 18 ms at 44.1 kHz) and no overrun at the recorded point; this is a working
@@ -116,7 +122,7 @@ SCO and ACL payloads are filtered from the current packet logger; call/media
 payloads are not recorded. Do not publish local key files.
 
 ```powershell
-'connect 44:F2:1B:19:EC:0F' | Set-Content .local\hfp-run\command.txt -Encoding ASCII
+'connect 02:00:00:00:00:02' | Set-Content .local\hfp-run\command.txt -Encoding ASCII
 'audio' | Set-Content .local\hfp-run\command.txt -Encoding ASCII
 'audio-off' | Set-Content .local\hfp-run\command.txt -Encoding ASCII
 ```

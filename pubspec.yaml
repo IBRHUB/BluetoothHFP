@@ -1,7 +1,7 @@
 name: bluetooth_hfp
-description: Minimal Windows iPhone call audio bridge.
+description: Windows Bluetooth headset with safe driver recovery and native audio.
 publish_to: 'none'
-version: 1.0.1+2
+version: 2.0.0+3
 
 environment:
   sdk: ^3.13.4

@@ -1,4 +1,5 @@
 #include "wasapi_internal.h"
+#include "app/control.h"
 #include <cstdio>
 #include <cstdlib>
 void capture_worker(AudioState& state) {
@@ -29,6 +30,6 @@ void capture_worker(AudioState& state) {
                 check_audio(capture->GetNextPacketSize(&frames), "Get capture packet size");
             }
         }
-    } catch (const std::exception& error) { printf("[AUDIO] Capture failed: %s\n", error.what()); SetEvent(state.stop); }
+    } catch (const std::exception& error) { control_event("audioError", error.what(), 1); printf("[AUDIO] Capture failed: %s\n", error.what()); SetEvent(state.stop); }
     if (SUCCEEDED(com)) CoUninitialize();
 }

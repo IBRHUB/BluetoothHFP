@@ -26,8 +26,12 @@ void headset_command(const char * command) {
         if (peer_acl != HCI_CON_HANDLE_INVALID || !sscanf_bd_addr(command + 7, address)) status = 12;
         else { gap_drop_link_key_for_bd_addr(address); control_event("forgotten", command + 7, 0); }
     }
-    else if (strncmp(command, "mute ", 5) == 0) audio_controls(atoi(command + 5) != 0, 100);
-    else if (strncmp(command, "volume ", 7) == 0) media_render_volume((unsigned)atoi(command + 7));
+    else if (strncmp(command, "mic ", 4) == 0) {
+        unsigned mute, gain;
+        if (sscanf(command + 4, "%u %u", &mute, &gain) == 2 && mute <= 1 && gain <= 100) audio_controls((int)mute, gain);
+        else status = 18;
+    }
+    else if (strncmp(command, "volume ", 7) == 0) audio_output_volume((unsigned)atoi(command + 7));
     else if (strcmp(command, "audio") == 0 && acl != HCI_CON_HANDLE_INVALID)
         status = hfp_hf_establish_audio_connection(acl);
     else if (strcmp(command, "audio-off") == 0 && acl != HCI_CON_HANDLE_INVALID)
@@ -119,6 +123,7 @@ static void profile_event(uint8_t type, uint16_t channel, uint8_t * event, uint1
             printf("[SCO] Waiting for iPhone call audio route (or command: audio)\n");
             break;
         case HFP_SUBEVENT_SERVICE_LEVEL_CONNECTION_RELEASED:
+            control_event("hfp", "closed", 0);
             audio_stop();
             hfp_audio_codec_stop();
             if (sco != HCI_CON_HANDLE_INVALID) headset_media_call_active(0);

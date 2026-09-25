@@ -1,10 +1,10 @@
 [APP] AX201 HFP-HF PoC; warm firmware required; no Windows audio yet
 [HFP] Service registered as HF uuid=0x111E RFCOMM=1 codec=CVSD
 [HCI] Controller ready (BTstack working)
-[BT] Local address: 38:68:93:87:62:06
+[BT] Local address: 02:00:00:00:00:01
 [BT] Discoverable as AX201 HFP Headset; open iPhone Bluetooth settings
-[BT] ACL connection peer=44:F2:1B:19:EC:0F status=0x00
-[BT] ACL connection peer=44:F2:1B:19:EC:0F status=0x00
+[BT] ACL connection peer=02:00:00:00:00:02 status=0x00
+[BT] ACL connection peer=02:00:00:00:00:02 status=0x00
 [BT] Headset Just Works pairing request
 [BT] Pairing complete status=0x00
 [HFP] RFCOMM connected

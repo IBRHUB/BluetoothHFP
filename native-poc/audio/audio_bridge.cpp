@@ -8,6 +8,7 @@ namespace {
 AudioState state;
 std::thread capture, render;
 std::atomic<bool> muted{false};
+std::atomic<unsigned> mic_gain{100}, output_gain{100};
 }
 extern "C" void audio_stop(void) {
     if (state.stop) SetEvent(state.stop);
@@ -29,8 +30,14 @@ extern "C" void audio_start(unsigned rate) {
 extern "C" void audio_capture_read(int16_t* samples, unsigned count) {
     state.capture.pull(samples, count);
     if (muted) std::fill_n(samples, count, int16_t(0));
+    else for (unsigned i=0; i<count; ++i) samples[i] = (int16_t)(int(samples[i]) * int(mic_gain.load()) / 100);
 }
-extern "C" void audio_controls(int mute, unsigned gain) { (void)gain; muted = mute != 0; }
+extern "C" void audio_controls(int mute, unsigned gain) { muted = mute != 0; mic_gain = std::min(gain, 100u); }
+extern "C" void audio_output_volume(unsigned gain) { output_gain = std::min(gain, 127u); }
+extern "C" void audio_apply_output(short* samples, unsigned count) {
+    const unsigned gain = output_gain.load();
+    for (unsigned i=0; i<count; ++i) samples[i] = (int16_t)(int(samples[i]) * int(gain) / 127);
+}
 extern "C" void audio_render_write(const int16_t* samples, unsigned count) {
     int peak = 0;
     for (unsigned i = 0; i < count; ++i) peak = std::max(peak, std::abs(int(samples[i])));

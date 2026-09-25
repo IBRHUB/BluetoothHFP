@@ -8,7 +8,7 @@
 #include <memory>
 
 #include "win32_window.h"
-#include "hfp_controller.h"
+#include "platform_bridge.h"
 
 // A window that does nothing but host a Flutter view.
 class FlutterWindow : public Win32Window {
@@ -32,7 +32,7 @@ class FlutterWindow : public Win32Window {
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
   std::unique_ptr<flutter::MethodChannel<>> channel_;
   // Construct only after Win32Window::Create's initial Destroy() callback.
-  std::unique_ptr<HfpController> hfp_controller_;
+  bool allow_close_ = false;
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_
