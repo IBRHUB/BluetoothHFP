@@ -5,6 +5,7 @@ $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
 Push-Location $repo
 try {
     if (!$SkipBuild) {
+        & (Join-Path $repo 'native-poc\tests\controller_policy_tests.ps1')
         & (Join-Path $repo 'native-poc\tools\Build.ps1')
         & (Join-Path $repo 'native-poc\tools\Build-Headset.ps1')
         $flutter = if ($FlutterRoot) { Join-Path $FlutterRoot 'bin\flutter.bat' } else { (Get-Command flutter -ErrorAction Stop).Source }
@@ -30,7 +31,7 @@ try {
     Copy-Item (Join-Path $repo 'build\ax201-headset\Release\ax201_headset.exe') $engine
     foreach ($name in @('ax201_probe.exe','ax201_driver.exe')) { Copy-Item (Join-Path $repo "build\ax201-poc\Release\$name") $engine }
     foreach ($name in @('Controller.ps1','Uninstall.ps1')) { Copy-Item (Join-Path $PSScriptRoot $name) $tools }
-    foreach ($name in @('Backup-Driver.ps1','Restore-Driver.ps1')) { Copy-Item (Join-Path $repo "native-poc\tools\$name") $tools }
+    foreach ($name in @('Backup-Driver.ps1','Restore-Driver.ps1','ControllerProfiles.ps1','controller-profiles.json')) { Copy-Item (Join-Path $repo "native-poc\tools\$name") $tools }
     Copy-Item (Join-Path $repo 'native-poc\THIRD-PARTY.md') $licenses
     Copy-Item (Join-Path $repo 'README.md') $stage
     # Ship corresponding dependency sources and all upstream notices with the binary.
@@ -45,7 +46,7 @@ try {
     } | Select-Object -First 1
     if (!$crt) { throw 'MSVC runtime redistribution folder not found' }
     Get-ChildItem $crt.FullName -Filter '*.dll' | ForEach-Object { Copy-Item $_.FullName $stage; Copy-Item $_.FullName $engine }
-    foreach ($required in @('bluetooth_hfp.exe','flutter_windows.dll','engine\ax201_headset.exe','engine\ax201_probe.exe','engine\ax201_driver.exe','vcruntime140.dll')) {
+    foreach ($required in @('bluetooth_hfp.exe','flutter_windows.dll','engine\ax201_headset.exe','engine\ax201_probe.exe','engine\ax201_driver.exe','engine\tools\ControllerProfiles.ps1','engine\tools\controller-profiles.json','vcruntime140.dll')) {
         if (!(Test-Path (Join-Path $stage $required))) { throw "Missing release file: $required" }
     }
     if ($StageOnly) { Write-Output "[RELEASE] Staged at $stage"; return }

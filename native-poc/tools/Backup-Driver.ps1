@@ -1,10 +1,12 @@
 [CmdletBinding()]
-param([string]$OutputDirectory)
+param([string]$OutputDirectory, [string]$InstanceId)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'ControllerProfiles.ps1')
 if (-not $OutputDirectory) { $OutputDirectory = Join-Path $PSScriptRoot '..\..\.local\ax201-backup' }
-$devices = @(Get-PnpDevice -PresentOnly | Where-Object InstanceId -like 'USB\VID_8087&PID_0026\*')
-if ($devices.Count -ne 1) { throw "Expected exactly one physical AX201 Bluetooth device; found $($devices.Count)" }
-$device = $devices[0]
+$inventory = Get-ControllerInventory
+if (!$inventory.supported -or ($InstanceId -and $InstanceId -ne $inventory.selectedId)) { throw 'Expected one unambiguous supported controller; no driver changed' }
+$device = Get-PnpDevice -InstanceId $inventory.selectedId -PresentOnly
+$profile = Find-ControllerProfile $device.InstanceId
 $properties = @(Get-PnpDeviceProperty -InstanceId $device.InstanceId)
 function PropertyValue([string]$Name) {
     ($properties | Where-Object KeyName -eq $Name).Data
@@ -17,6 +19,9 @@ $package = New-Item -ItemType Directory -Path (Join-Path $destination 'driver-pa
 $net = @(Get-NetAdapter | Select-Object Name,InterfaceDescription,Status,InterfaceGuid)
 $wifi = @(Get-PnpDevice -Class Net -PresentOnly | Where-Object FriendlyName -match 'AX201')
 $snapshot = [ordered]@{
+    SchemaVersion = 2
+    ProfileId = $profile.id
+    DriverInfSection = PropertyValue 'DEVPKEY_Device_DriverInfSection'
     CapturedAt = (Get-Date).ToString('o')
     InstanceId = $device.InstanceId
     FriendlyName = $device.FriendlyName
@@ -29,6 +34,7 @@ $snapshot = [ordered]@{
     Wifi = @($wifi | Select-Object InstanceId,FriendlyName,Status)
     Network = $net
 }
+$null = Get-RecoverySection ([pscustomobject]$snapshot) $profile
 $snapshot | ConvertTo-Json -Depth 8 | Set-Content (Join-Path $destination 'snapshot.json') -Encoding UTF8
 $properties | Export-Clixml (Join-Path $destination 'device-properties.xml')
 Copy-Item -LiteralPath (Join-Path $env:windir "INF\$inf") -Destination (Join-Path $destination $inf)
@@ -40,10 +46,15 @@ if ($infs.Count -eq 0 -or @(Get-ChildItem $package.FullName -Filter '*.sys' -Rec
     @(Get-ChildItem $package.FullName -Filter '*.cat' -Recurse).Count -eq 0) {
     throw 'Export is incomplete: expected INF, SYS and CAT files'
 }
-Get-ChildItem $package.FullName -File -Recurse | ForEach-Object {
+$protectedFiles = @(Get-ChildItem $package.FullName -File -Recurse) + @(
+    Get-Item -LiteralPath (Join-Path $destination 'snapshot.json')
+    Get-Item -LiteralPath (Join-Path $destination $inf)
+)
+$protectedFiles | ForEach-Object {
     [pscustomobject]@{ RelativePath = $_.FullName.Substring($destination.Length + 1); SHA256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash }
 } | ConvertTo-Json | Set-Content (Join-Path $destination 'hashes.json') -Encoding UTF8
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Restore-Driver.ps1') -Destination $destination
+foreach ($name in @('ControllerProfiles.ps1','controller-profiles.json')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $destination }
 @"
 AX201 Bluetooth driver recovery (no Wi-Fi driver changes)
 Target instance: $($device.InstanceId)

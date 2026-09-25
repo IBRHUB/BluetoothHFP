@@ -25,6 +25,10 @@ applied in addition to the phone's AVRCP volume. Forget requires disconnection.
 The application validates addresses before sending. No shell command execution
 is exposed through this channel. Windows driver operations are separate,
 allowlisted elevated operations with completion/exit-code checks.
+The desktop `driverStart` platform call carries `{action, instanceId}`. The
+elevated controller rechecks this exact selected instance before switching.
+Inventory supplies `selectedId` and per-device `eligible`/`support` fields; the
+desktop never infers selection from enumeration order.
 
 Responses prefixed `@` are JSON objects:
 

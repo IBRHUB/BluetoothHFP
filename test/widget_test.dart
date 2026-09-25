@@ -26,6 +26,37 @@ void main() {
       expect(HeadsetController.validAddress(bad), isFalse);
     }
   });
+  test('selected radio is independent of discovery order and fails closed', () {
+    const selected = r'USB\VID_8087&PID_0026\REFERENCE';
+    controller.inventory = {
+      'supported': true,
+      'selectedId': selected,
+      'devices': [
+        {'id': 'other', 'service': 'BTHUSB', 'eligible': false},
+        {'id': selected, 'service': 'WINUSB', 'eligible': true},
+      ],
+    };
+    expect(controller.supported, isTrue);
+    expect(controller.service, 'WINUSB');
+    controller.inventory['selectedId'] = 'other';
+    expect(controller.supported, isFalse);
+    controller.inventory['selectedId'] = 'missing';
+    expect(controller.supported, isFalse);
+    expect(controller.service, isEmpty);
+    controller.inventory.remove('selectedId');
+    expect(controller.supported, isFalse);
+  });
+  test('duplicate selected identities cannot authorize startup', () {
+    controller.inventory = {
+      'supported': true,
+      'selectedId': 'duplicate',
+      'devices': [
+        {'id': 'duplicate', 'eligible': true},
+        {'id': 'duplicate', 'eligible': true},
+      ],
+    };
+    expect(controller.supported, isFalse);
+  });
   test(
     'structured events track codecs and clear stale routes on disconnect',
     () async {

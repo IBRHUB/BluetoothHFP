@@ -39,12 +39,22 @@ class HeadsetController extends ChangeNotifier {
   final List<String> logs = [];
   bool get running => _engine != null;
   String get enginePath => '$bundle\\engine';
-  String get service => devices.isEmpty ? '' : '${devices.first['service']}';
+  Map<String, dynamic>? get selectedDevice {
+    final id = inventory['selectedId'];
+    if (id is! String || id.isEmpty) return null;
+    final matches = devices.where((device) => device['id'] == id).toList();
+    return matches.length == 1 ? matches.single : null;
+  }
+
+  String get service => selectedDevice?['service'] as String? ?? '';
+  String get adapterName =>
+      selectedDevice?['name'] as String? ?? 'No supported adapter selected';
   List<Map<String, dynamic>> get devices =>
       (inventory['devices'] as List? ?? [])
           .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
-  bool get supported => inventory['supported'] == true;
+  bool get supported =>
+      inventory['supported'] == true && selectedDevice?['eligible'] == true;
   void changed() {
     if (!_disposed) notifyListeners();
   }
@@ -148,6 +158,7 @@ class HeadsetController extends ChangeNotifier {
                 : 'Normal Windows Bluetooth')
           : '${inventory['reason']}';
     } catch (e) {
+      inventory = {};
       error = 'Inspection failed: $e';
     }
     changed();
@@ -170,9 +181,18 @@ class HeadsetController extends ChangeNotifier {
   }
 
   Future<void> _driver(String action) async {
+    final instance = selectedDevice?['id'];
+    if (!supported || instance is! String) {
+      throw Exception(
+        'No unambiguous supported controller selected. Refresh the device list.',
+      );
+    }
     message = 'Switching driver and verifying recovery…';
     changed();
-    await platform.invokeMethod<void>('driverStart', action);
+    await platform.invokeMethod<void>('driverStart', {
+      'action': action,
+      'instanceId': instance,
+    });
     for (var i = 0; i < 600; i++) {
       await Future<void>.delayed(const Duration(milliseconds: 500));
       final status = await platform.invokeMethod<int>('driverPoll');
@@ -189,6 +209,11 @@ class HeadsetController extends ChangeNotifier {
       }
       await refresh();
       if (status != 0) throw Exception(detail);
+      if (!supported || selectedDevice?['id'] != instance) {
+        throw Exception(
+          'The selected controller changed during the operation. Refresh the device list.',
+        );
+      }
       _log(detail);
       return;
     }
@@ -224,7 +249,7 @@ class HeadsetController extends ChangeNotifier {
       workingDirectory: data.path,
       environment: {
         'AX201_IPC': '1',
-        'AX201_USB_INSTANCE': '${devices.first['id']}',
+        'AX201_USB_INSTANCE': '${selectedDevice!['id']}',
         'AX201_CAPTURE': capture,
         'AX201_RENDER': render,
         'AX201_HFP_CODEC': codec,
@@ -478,6 +503,11 @@ class HeadsetController extends ChangeNotifier {
                 'status': device['status'],
                 'service': device['service'],
                 'inf': device['inf'],
+                'vid': device['vid'],
+                'pid': device['pid'],
+                'profile': device['profile'],
+                'support': device['support'],
+                'driverVersion': device['driverVersion'],
               },
             )
             .toList(),

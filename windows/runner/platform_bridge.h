@@ -4,5 +4,5 @@
 #include <string>
 flutter::EncodableList AudioEndpoints();
 std::wstring AppDirectory();
-bool BeginDriverOperation(const std::string& action, HWND owner);
+bool BeginDriverOperation(const std::string& action, const std::string& instance, HWND owner);
 int DriverOperationStatus();

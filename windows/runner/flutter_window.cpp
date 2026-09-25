@@ -17,8 +17,16 @@ bool FlutterWindow::OnCreate() {
     if (call.method_name() == "endpoints") { result->Success(AudioEndpoints()); return; }
     if (call.method_name() == "driverPoll") { result->Success(flutter::EncodableValue(DriverOperationStatus())); return; }
     if (call.method_name() == "driverStart") {
-      const auto* action = call.arguments() ? std::get_if<std::string>(call.arguments()) : nullptr;
-      if (action && BeginDriverOperation(*action, GetHandle())) result->Success();
+      const auto* args = call.arguments() ? std::get_if<flutter::EncodableMap>(call.arguments()) : nullptr;
+      const std::string* action = nullptr;
+      const std::string* instance = nullptr;
+      if (args) {
+        auto a = args->find(flutter::EncodableValue("action"));
+        auto i = args->find(flutter::EncodableValue("instanceId"));
+        if (a != args->end()) action = std::get_if<std::string>(&a->second);
+        if (i != args->end()) instance = std::get_if<std::string>(&i->second);
+      }
+      if (action && instance && !instance->empty() && BeginDriverOperation(*action, *instance, GetHandle())) result->Success();
       else result->Error("driver", "Administrator operation was cancelled, unavailable, or already running.");
       return;
     }

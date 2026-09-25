@@ -38,6 +38,10 @@ are unavailable while the headset owns it. Wi-Fi is not rebound.
   chose mSBC. No LC3 phone interoperability claim.
 - Other USB identities are blocked before driver changes, not labelled supported.
   Multiple matching controllers are rejected to avoid ambiguous ownership.
+- Settings lists detected physical controllers and their compatibility status.
+  A shared profile catalog now drives discovery, native selection and driver
+  recovery policy; AX201 remains the only enabled profile. See
+  `docs/CONTROLLER-COMPATIBILITY.md` for the implementation and remaining gates.
 - Reconnect and suspend/resume handling are implemented; a real cold power cycle,
   long-duration stress and additional controller/phone combinations still need
   physical validation. Resident firmware or original Intel driver bootstrap is

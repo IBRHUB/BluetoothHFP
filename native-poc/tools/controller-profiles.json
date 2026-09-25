@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "profiles": [
+    {
+      "id": "intel-0026-legacy",
+      "name": "Intel AX201 / USB 8087:0026",
+      "vid": "8087",
+      "pid": "0026",
+      "backend": "intel-legacy",
+      "validation": "reference-tested",
+      "originalProvider": "Intel Corporation",
+      "originalService": "BTHUSB",
+      "legacyInfSection": "ibtusb",
+      "evidence": "Calls and media tested on the reference machine; other machines and cold boot require validation."
+    }
+  ]
+}

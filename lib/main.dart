@@ -420,7 +420,7 @@ class _HomeState extends State<Home> {
         if (page == 0)
           section('Headset', Icons.bluetooth, [
             Text(
-              c.supported ? 'Intel AX201' : 'No supported adapter detected',
+              c.adapterName,
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 8),
@@ -594,6 +594,23 @@ class _HomeState extends State<Home> {
           ]),
         if (page == 2)
           section('Settings', Icons.settings, [
+            ExpansionTile(
+              title: const Text('Adapter compatibility'),
+              children: [
+                if (c.devices.isEmpty)
+                  const ListTile(
+                    title: Text('No Bluetooth controller detected'),
+                  ),
+                for (final device in c.devices)
+                  ListTile(
+                    title: Text('${device['name'] ?? 'Bluetooth controller'}'),
+                    subtitle: Text('${device['support']}\n${device['reason']}'),
+                    trailing: device['id'] == c.selectedDevice?['id']
+                        ? const Icon(Icons.check_circle_outline)
+                        : null,
+                  ),
+              ],
+            ),
             OutlinedButton.icon(
               onPressed: c.busy || !c.supported ? null : c.restore,
               icon: const Icon(Icons.settings_backup_restore),

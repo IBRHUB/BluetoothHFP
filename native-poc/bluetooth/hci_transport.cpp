@@ -1,4 +1,5 @@
 #include "hci_transport.h"
+#include "controller_profiles.h"
 #include <array>
 #include <iomanip>
 #include <iostream>
@@ -60,14 +61,7 @@ public:
         }
     }
 };
-}
-void verify_hci(HANDLE file, WINUSB_INTERFACE_HANDLE usb, UCHAR pipe) {
-    Commands commands(file, usb, pipe);
-    commands.send(0x0c03); // Standard reset only, not Intel firmware reset.
-    const auto version = commands.send(0x1001);
-    if (version.size() != 9) throw std::runtime_error("invalid local version reply");
-    std::cout << "[HCI] Version=" << unsigned(version[1]) << " manufacturer="
-              << (version[5] | (version[6] << 8)) << '\n';
+void verify_intel_legacy(Commands& commands) {
     const auto intel = commands.send(0xfc05); // Legacy Intel Read Version, no parameters.
     if (intel.size() != 10 || intel[1] != 0x37) throw std::runtime_error("Intel version needs a different parser");
     std::cout << "[FW] Intel platform=0x" << std::hex << unsigned(intel[1])
@@ -75,6 +69,18 @@ void verify_hci(HANDLE file, WINUSB_INTERFACE_HANDLE usb, UCHAR pipe) {
               << " fwVariant=0x" << unsigned(intel[4]) << " fwRevision=0x" << unsigned(intel[5]) << std::dec << '\n';
     if (intel[4] != 0x23) throw std::runtime_error("Intel firmware is not operational; loader required");
     std::cout << "[FW] Operational firmware already resident; no firmware upload performed\n";
+}
+}
+void verify_hci(HANDLE file, WINUSB_INTERFACE_HANDLE usb, UCHAR pipe, unsigned backend) {
+    if (backend != HFP_BACKEND_INTEL_LEGACY) throw std::runtime_error("unimplemented controller initialization backend");
+    Commands commands(file, usb, pipe);
+    commands.send(0x0c03); // Standard reset only, not Intel firmware reset.
+    const auto version = commands.send(0x1001);
+    if (version.size() != 9) throw std::runtime_error("invalid local version reply");
+    const auto manufacturer = version[5] | (version[6] << 8);
+    std::cout << "[HCI] Version=" << unsigned(version[1]) << " manufacturer=" << manufacturer << '\n';
+    if (manufacturer != 2) throw std::runtime_error("controller manufacturer does not match Intel backend");
+    verify_intel_legacy(commands);
     const auto features = commands.send(0x1003);
     if (features.size() != 9) throw std::runtime_error("invalid supported features reply");
     const auto buffers = commands.send(0x1005);

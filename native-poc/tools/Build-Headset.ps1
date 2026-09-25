@@ -28,22 +28,11 @@ if (-not $transport.Contains($needle)) { throw 'USB patch anchor changed' }
 $replacement = @'
 static int usb_try_open_device(const char * device_path){
     /* Require the selected physical USB instance when launched by the app. */
-    if (strstr(device_path, "vid_8087&pid_0026#") == NULL) return 0;
     const char * selected = getenv("AX201_USB_INSTANCE");
-    if (selected && selected[0]) {
-        char match[512];
-        if (strlen(selected) + 2 > sizeof(match)) return 0;
-        strcpy_s(match, sizeof(match), selected);
-        for (char * p = match; *p; ++p) {
-            if (*p == '\\') *p = '#';
-            else if (*p >= 'A' && *p <= 'Z') *p += 'a' - 'A';
-        }
-        strcat_s(match, sizeof(match), "#");
-        if (strstr(device_path, match) == NULL) return 0;
-    }
+    if (!hfp_usb_path_allowed(device_path, selected)) return 0;
 '@
 $transport = $transport.Replace($needle, $replacement)
-$transport = "#include <stdlib.h>`n#include <string.h>`n" + $transport
+$transport = "#include <stdlib.h>`n#include <string.h>`n#include `"controller_profiles.h`"`n" + $transport
 $transport = $transport.Replace('if (!usb_device_handle) goto exit_on_error;', 'if (usb_device_handle == INVALID_HANDLE_VALUE) goto exit_on_error;')
 [IO.File]::WriteAllText((Join-Path $build 'hci_transport_h2_winusb.c'), $transport)
 $hfp = Get-Content (Join-Path $source 'src\classic\hfp.c') -Raw

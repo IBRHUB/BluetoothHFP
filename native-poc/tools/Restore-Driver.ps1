@@ -1,16 +1,9 @@
 [CmdletBinding()]
 param([Parameter(Mandatory=$true)][string]$BackupDirectory, [switch]$VerifyOnly)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'ControllerProfiles.ps1')
 $root = (Resolve-Path -LiteralPath $BackupDirectory).Path
-$snapshot = Get-Content -LiteralPath (Join-Path $root 'snapshot.json') -Raw | ConvertFrom-Json
-if ($snapshot.InstanceId -notlike 'USB\VID_8087&PID_0026\*') { throw 'Backup is not for AX201 Bluetooth' }
-$hashes = Get-Content -LiteralPath (Join-Path $root 'hashes.json') -Raw | ConvertFrom-Json
-if (-not $hashes -or @($hashes).Count -eq 0) { throw 'Backup hash manifest is empty' }
-foreach ($entry in $hashes) {
-    $file = [IO.Path]::GetFullPath((Join-Path $root $entry.RelativePath))
-    if (-not $file.StartsWith($root.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'Invalid backup path' }
-    if ((Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash -ne $entry.SHA256) { throw "Backup hash mismatch: $file" }
-}
+$snapshot = Read-ControllerBackup $root
 if (-not $VerifyOnly) {
     foreach ($inf in Get-ChildItem -LiteralPath (Join-Path $root 'driver-package') -Filter '*.inf' -Recurse) {
         # Stage only: /install can affect every matching device, so binding is deliberately per-device Have Disk.

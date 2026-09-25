@@ -6,7 +6,7 @@
 int APIENTRY wWinMain(HINSTANCE, HINSTANCE, wchar_t*, int) {
   auto arguments = GetCommandLineArguments();
   if (!arguments.empty() && arguments[0] == "--recover") {
-    if (!BeginDriverOperation("Native", nullptr)) return 1;
+    if (!BeginDriverOperation("Native", "", nullptr)) return 1;
     int status;
     do { Sleep(200); status = DriverOperationStatus(); } while (status == -1);
     MessageBoxW(nullptr, status == 0 ? L"Windows Bluetooth restored." : L"Recovery failed. Close the headset app and retry. Recovery packages remain in C:\\ProgramData\\BluetoothHFP\\backups.", L"Bluetooth HFP Recovery", status == 0 ? MB_OK : MB_ICONERROR);

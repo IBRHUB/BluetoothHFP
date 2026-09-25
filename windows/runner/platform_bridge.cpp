@@ -36,11 +36,16 @@ flutter::EncodableList AudioEndpoints() {
     }
     return result;
 }
-bool BeginDriverOperation(const std::string& action, HWND owner) {
+bool BeginDriverOperation(const std::string& action, const std::string& instance, HWND owner) {
     if (action != "Native" && action != "Headset" && action != "Bootstrap") return false;
     if (operation) return false;
+    // The standalone recovery shortcut has no desktop selection; Native alone
+    // may let the elevated script resolve its single unambiguous controller.
+    if ((instance.empty() && action != "Native") || instance.size() > 250 ||
+        instance.find_first_not_of("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789\\&_.-") != std::string::npos) return false;
     const auto script = AppDirectory() + L"\\engine\\tools\\Controller.ps1";
     std::wstring params = L"-NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"" + script + L"\" -Action " + std::wstring(action.begin(), action.end());
+    if (!instance.empty()) params += L" -ExpectedInstanceId \"" + std::wstring(instance.begin(), instance.end()) + L"\"";
     wchar_t system[MAX_PATH]; GetSystemDirectoryW(system, MAX_PATH);
     const std::wstring powershell = std::wstring(system) + L"\\WindowsPowerShell\\v1.0\\powershell.exe";
     SHELLEXECUTEINFOW info{}; info.cbSize = sizeof(info); info.fMask = SEE_MASK_NOCLOSEPROCESS;

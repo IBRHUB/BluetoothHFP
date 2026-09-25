@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 project(ax201_headset LANGUAGES C CXX)
+include(../cmake/ControllerProfiles.cmake)
 if(NOT BTSTACK_ROOT)
   message(FATAL_ERROR "Supply pinned BTSTACK_ROOT using Build-Headset.ps1")
 endif()

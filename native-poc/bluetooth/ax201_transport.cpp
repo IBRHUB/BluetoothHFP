@@ -8,6 +8,7 @@
 #include <usbioctl.h>
 #include <winusb.h>
 #include "hci_transport.h"
+#include "controller_profiles.h"
 #include <algorithm>
 #include <iostream>
 #include <stdexcept>
@@ -41,7 +42,7 @@ std::wstring property(HDEVINFO list, SP_DEVINFO_DATA& info, DWORD key) {
     return buf.data();
 }
 bool target(const std::wstring& id) {
-    return _wcsnicmp(id.c_str(), L"USB\\VID_8087&PID_0026", 21) == 0;
+    return hfp_profile_for_instance(id.c_str()) != nullptr;
 }
 template<class F> void interfaces(const GUID& guid, F callback) {
     Devices list{SetupDiGetClassDevsW(&guid, nullptr, nullptr, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE)};
@@ -103,8 +104,7 @@ void inspect_hubs() {
                 &connection, static_cast<DWORD>(connection_buffer.size()), &connection,
                 static_cast<DWORD>(connection_buffer.size()), &got, nullptr)) continue;
             if (connection.ConnectionStatus != DeviceConnected ||
-                connection.DeviceDescriptor.idVendor != 0x8087 ||
-                connection.DeviceDescriptor.idProduct != 0x0026) continue;
+                !hfp_profile_for_usb(connection.DeviceDescriptor.idVendor, connection.DeviceDescriptor.idProduct)) continue;
             std::cout << "[USB] AX201 USB hub port=" << port << " bcdDevice=0x" << std::hex
                       << connection.DeviceDescriptor.bcdDevice << std::dec
                       << " speedEnum=" << unsigned(connection.Speed) << '\n';
@@ -118,10 +118,22 @@ void inspect_hubs() {
 int probe(bool run_hci) {
     try {
         std::cout << (run_hci ? "[STAGE] 2 HCI verification after USB gate\n" : "[STAGE] 1 USB ownership and descriptor probe; no HCI commands\n");
+        std::wstring selected_instance;
+        unsigned candidates = 0;
+        interfaces(device_guid, [&](HDEVINFO list, SP_DEVINFO_DATA& info, const wchar_t*) {
+            wchar_t instance[MAX_DEVICE_ID_LEN]{};
+            if (SetupDiGetDeviceInstanceIdW(list, &info, instance, MAX_DEVICE_ID_LEN, nullptr) && target(instance)) {
+                selected_instance = instance; ++candidates;
+            }
+        });
+        if (candidates != 1) {
+            std::cout << "[GATE] BLOCKED: expected one supported USB controller; found " << candidates << '\n';
+            return 2;
+        }
         bool found = false, opened = false, hci = false;
         interfaces(device_guid, [&](HDEVINFO list, SP_DEVINFO_DATA& info, const wchar_t* path) {
             wchar_t instance[MAX_DEVICE_ID_LEN]{};
-            if (!SetupDiGetDeviceInstanceIdW(list, &info, instance, MAX_DEVICE_ID_LEN, nullptr) || !target(instance)) return;
+            if (!SetupDiGetDeviceInstanceIdW(list, &info, instance, MAX_DEVICE_ID_LEN, nullptr) || selected_instance != instance) return;
             found = true;
             std::cout << "[USB] AX201 detected\n";
             std::wcout << L"[USB] Instance: " << instance << L"\n[USB] Service: "
@@ -141,7 +153,7 @@ int probe(bool run_hci) {
             USB_DEVICE_DESCRIPTOR dev{}; ULONG received = 0;
             if (!WinUsb_GetDescriptor(usb.value, USB_DEVICE_DESCRIPTOR_TYPE, 0, 0,
                 reinterpret_cast<PUCHAR>(&dev), sizeof(dev), &received) || received != sizeof(dev) ||
-                dev.idVendor != 0x8087 || dev.idProduct != 0x0026)
+                !hfp_profile_for_usb(dev.idVendor, dev.idProduct))
                 throw std::runtime_error("WinUSB target descriptor mismatch");
             std::vector<uint8_t> config(65535);
             if (!WinUsb_GetDescriptor(usb.value, USB_CONFIGURATION_DESCRIPTOR_TYPE, 0, 0,
@@ -168,7 +180,8 @@ int probe(bool run_hci) {
             if (!WinUsb_GetAssociatedInterface(usb.value, 0, &sco.value))
                 std::cout << "[USB] SCO associated interface unavailable win32=" << GetLastError() << '\n';
             else std::cout << "[USB] Associated interface opened; SCO transfer remains untested\n";
-            if (run_hci && hci) verify_hci(file.value, usb.value, event_pipe);
+            if (run_hci && hci) verify_hci(file.value, usb.value, event_pipe,
+                                         hfp_profile_for_usb(dev.idVendor, dev.idProduct)->backend);
         });
         inspect_hubs();
         if (!found) { std::cout << "[GATE] BLOCKED: target USB device interface absent\n"; return 2; }

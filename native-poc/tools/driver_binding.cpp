@@ -6,6 +6,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include "controller_profiles.h"
 
 static int fail(const char* operation) {
     std::cerr << "[DRIVER] " << operation << " failed win32=" << GetLastError() << '\n';
@@ -17,7 +18,7 @@ int wmain(int argc, wchar_t** argv) {
         return 64;
     }
     const std::wstring instance = argv[2], inf = argv[3], section = argv[4];
-    if (instance.find(L"USB\\VID_8087&PID_0026\\") != 0 || inf.size() >= MAX_PATH) return 64;
+    if (!hfp_profile_for_instance(instance.c_str()) || inf.size() >= MAX_PATH) return 64;
     const bool install = std::wstring(argv[1]) == L"install";
     // Validate the package and unique section before detaching anything.
     if (install) {
