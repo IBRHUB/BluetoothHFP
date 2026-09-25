@@ -29,6 +29,11 @@ bool FlutterWindow::OnCreate() {
     result->NotImplemented();
   });
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
+  // Enable the native accessibility bridge before Dart sends its first tree.
+  // A late request can start it with an incremental update missing the root
+  // (flutter/flutter#175041).
+  SendMessage(flutter_controller_->view()->GetNativeWindow(), WM_GETOBJECT,
+              0, static_cast<LPARAM>(OBJID_CLIENT));
   flutter_controller_->engine()->SetNextFrameCallback([this]() { Show(); });
   flutter_controller_->ForceRedraw(); return true;
 }

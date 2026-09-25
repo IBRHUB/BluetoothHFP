@@ -11,24 +11,10 @@ void main(List<String> args) {
   runApp(HeadsetApp(smoke: args.contains('--smoke')));
 }
 
-class HeadsetApp extends StatefulWidget {
+class HeadsetApp extends StatelessWidget {
   const HeadsetApp({super.key, this.smoke = false, this.controller});
   final bool smoke;
   final HeadsetController? controller;
-  @override
-  State<HeadsetApp> createState() => _HeadsetAppState();
-}
-
-class _HeadsetAppState extends State<HeadsetApp> {
-  // Initialize before the first frame and retain the root across Windows
-  // accessibility requests. See flutter/flutter#175041.
-  final _semantics = WidgetsBinding.instance.ensureSemantics();
-  @override
-  void dispose() {
-    _semantics.dispose();
-    super.dispose();
-  }
-
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'Bluetooth HFP',
@@ -37,14 +23,29 @@ class _HeadsetAppState extends State<HeadsetApp> {
     theme: ThemeData(
       brightness: Brightness.dark,
       useMaterial3: true,
-      scaffoldBackgroundColor: const Color(0xff0d1420),
+      scaffoldBackgroundColor: Colors.black,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xff59d9b2),
+        seedColor: const Color(0xff2196f3),
         brightness: Brightness.dark,
+        primary: const Color(0xff2196f3),
+        onPrimary: Colors.white,
+        surface: Colors.black,
+        onSurface: Colors.white,
+        error: const Color(0xffef5350),
+      ),
+      dialogTheme: const DialogThemeData(backgroundColor: Colors.black),
+      navigationBarTheme: const NavigationBarThemeData(
+        backgroundColor: Colors.black,
+        indicatorColor: Color(0xff1565c0),
+        surfaceTintColor: Colors.transparent,
       ),
       fontFamily: 'Segoe UI',
       cardTheme: const CardThemeData(
-        color: Color(0xff172130),
+        color: Colors.black,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(16)),
+          side: BorderSide(color: Color(0xff292929)),
+        ),
         elevation: 0,
         margin: EdgeInsets.only(bottom: 16),
       ),
@@ -55,7 +56,7 @@ class _HeadsetAppState extends State<HeadsetApp> {
     ),
     home: Directionality(
       textDirection: TextDirection.ltr,
-      child: Home(controller: widget.controller, smoke: widget.smoke),
+      child: Home(controller: controller, smoke: smoke),
     ),
   );
 }
@@ -265,7 +266,8 @@ class _HomeState extends State<Home> {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: const Text('Bluetooth HFP'),
-      backgroundColor: const Color(0xff0d1420),
+      backgroundColor: Colors.black,
+      surfaceTintColor: Colors.transparent,
       actions: [
         IconButton(
           onPressed: c.busy ? null : () => c.perform(c.refresh),
@@ -301,7 +303,8 @@ class _HomeState extends State<Home> {
       children: [
         Text(
           c.message,
-          style: TextStyle(color: Theme.of(context).colorScheme.primary),
+          style: TextStyle(color: c.connected || c.ready
+              ? const Color(0xff66bb6a) : Colors.grey),
         ),
         const SizedBox(height: 20),
         if (c.busy)
@@ -311,10 +314,10 @@ class _HomeState extends State<Home> {
           ),
         if (c.error.isNotEmpty)
           Card(
-            color: const Color(0xff502932),
+            color: Colors.black,
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: SelectableText(c.error),
+              child: SelectableText(c.error, style: const TextStyle(color: Color(0xffef5350))),
             ),
           ),
         if (page == 0)
@@ -456,7 +459,7 @@ class _HomeState extends State<Home> {
             const SizedBox(height: 8),
             const Text(
               'Stop the headset to change devices or call quality.',
-              style: TextStyle(color: Colors.white60, fontSize: 12),
+            style: TextStyle(color: Color(0xffffca28), fontSize: 12),
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
